@@ -3,6 +3,11 @@
         "types.h": "c",
         "errno.h": "c",
         "stdlib.h": "c",
-        "scheduler.h": "c"
+        "scheduler.h": "c",
+        "select.h": "c",
+        "defines.h": "c",
+        "task.h": "c",
+        "stdbool.h": "c",
+        "stdarg.h": "c"
     }
 }

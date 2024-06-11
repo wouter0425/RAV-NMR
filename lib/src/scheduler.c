@@ -4,21 +4,13 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include "scheduler.h"
-#include "task.h"
+
+#include "pipe.h"
 #include "defines.h"
 
-typedef struct {
-    int m_coreID;
-    int m_weight;
-} core;
 
-typedef struct {
-    task m_tasks[NUM_OF_TASKS];
-    core m_cores[NUM_OF_CORES];
-} scheduler;
-
-static scheduler m_scheduler;
 
 void handle_signal(int sig) {
     if (sig == SIGINT) {
@@ -27,22 +19,49 @@ void handle_signal(int sig) {
     }
 }
 
-void *scheduler_task(void *arg) {
-    task tasks[NUM_OF_TASKS];
-    int pipe_AB[2], pipe_BC[2];
+void init_scheduler(scheduler *s)
+{
+    // init the cores
+    for (int i = 0; i < NUM_OF_CORES; i++)
+    {
+        s->m_cores[i].m_coreID = i;
+        s->m_cores[i].m_weight = MAX_CORE_WEIGHT;
+    } 
 
-    // Create pipes for inter-task communication
-    if (pipe(pipe_AB) == -1 || pipe(pipe_BC) == -1) {
-        perror("pipe");
-        exit(EXIT_FAILURE);
+    // init the pipes
+    pipe_struct *AB = declare_pipe("pipe_AB");
+    pipe_struct *BC = declare_pipe("pipe_BC");
+
+    // init the tasks
+    s->m_tasks[0].function = task_A;
+    s->m_tasks[0].pipes = NULL;
+    add_pipe(&s->m_tasks[0], AB);
+
+    s->m_tasks[1].function = task_B;
+    s->m_tasks[1].pipes = NULL;
+    add_pipe(&s->m_tasks[1], AB);
+    add_pipe(&s->m_tasks[1], BC);
+
+    s->m_tasks[2].function = task_C;
+    s->m_tasks[2].pipes = NULL;
+    add_pipe(&s->m_tasks[2], BC);
+
+    // Init tasks
+    for (int i = 0; i < NUM_OF_TASKS; i++) {
+        s->m_tasks[i].m_active = false;
+        s->m_tasks[i].m_fireable = true;
     }
-    
-    // Setup signal handler for clean exit
+
+    // exit handler function    
     signal(SIGINT, handle_signal);
 
+}
+
+void run_tasks(scheduler *s)
+{
     // Fork and set CPU affinity for each task
-    for (int i = 0; i < NUM_OF_TASKS; i++) {
-        tasks[i].cpu_id = i;
+    for (int i = 0; i < NUM_OF_TASKS && s->m_tasks[i].m_fireable == true; i++) {
+        s->m_tasks[i].cpu_id = i;
 
         pid_t pid = fork();
         if (pid == -1) {
@@ -52,62 +71,53 @@ void *scheduler_task(void *arg) {
             // Set CPU affinity for the task
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            CPU_SET(tasks[i].cpu_id, &cpuset);
+            CPU_SET(s->m_tasks[i].cpu_id, &cpuset);
             if (sched_setaffinity(0, sizeof(cpuset), &cpuset) != 0) {
                 perror("sched_setaffinity");
                 exit(EXIT_FAILURE);
             }
 
-            if (i == 0) {
-                close(pipe_AB[0]); // Close read end of pipe A->B
-                task_A(pipe_AB[1]);
-                close(pipe_AB[1]);
-            } else if (i == 1) {
-                close(pipe_AB[1]); // Close write end of pipe A->B
-                close(pipe_BC[0]); // Close read end of pipe B->C
-                task_B(pipe_AB[0], pipe_BC[1]);
-                close(pipe_AB[0]);
-                close(pipe_BC[1]);
-            } else if (i == 2) {
-                close(pipe_BC[1]); // Close write end of pipe B->C
-                task_C(pipe_BC[0]);
-                close(pipe_BC[0]);
-            }
+            s->m_tasks[i].function(s->m_tasks[i].pipes);
 
             exit(EXIT_SUCCESS);
         } else {
-            tasks[i].pid = pid;
+            s->m_tasks[i].pid = pid;
+            s->m_tasks[i].m_active = true;
+            s->m_tasks[i].m_fireable = false;
         }
     }
+}
 
-    // Monitor tasks and handle exit
-    while (1) {
-        for (int i = 0; i < NUM_OF_TASKS; i++) {
-            int status;
-            pid_t result = waitpid(tasks[i].pid, &status, WNOHANG);
-            if (result == 0) {
-                continue; // Task is still running
-            } else if (result == -1) {
-                perror("waitpid");
-                exit(EXIT_FAILURE);
-            } else {
-                if (WIFEXITED(status)) {
-                    printf("Task %d exited with status %d\n", i, WEXITSTATUS(status));
-                } else if (WIFSIGNALED(status)) {
-                    printf("Task %d was killed by signal %d\n", i, WTERMSIG(status));
-                }
+void monitor_tasks(scheduler *s)
+{
+    for (int i = 0; i < NUM_OF_TASKS; i++) {
+        int status;
+        pid_t result = waitpid(s->m_tasks[i].pid, &status, WNOHANG);
+        if (result == 0) {
+            continue; // Task is still running
+        } else if (result == -1) {
+            //perror("waitpid");
+            //exit(EXIT_FAILURE);
+        } else {
+            if (WIFEXITED(status)) {
+                printf("Task %d exited with status %d\n", i, WEXITSTATUS(status));
+            } else if (WIFSIGNALED(status)) {
+                printf("Task %d was killed by signal %d\n", i, WTERMSIG(status));
             }
+            
+            // restart the task
+            s->m_tasks[i].m_fireable = true;
         }
-        sleep(1); // Avoid busy loop
-    }
+    }        
+    sleep(1); // Avoid busy loop   
+}
 
+void cleanup_tasks(scheduler *s)
+{
     // Cleanup: kill all child processes
     for (int i = 0; i < NUM_OF_TASKS; i++) {
-        kill(tasks[i].pid, SIGTERM);
-        waitpid(tasks[i].pid, NULL, 0); // Ensure they are terminated
+        kill(s->m_tasks[i].pid, SIGTERM);
+        waitpid(s->m_tasks[i].pid, NULL, 0); // Ensure they are terminated
     }
-
     printf("Scheduler shutting down...\n");
-
-    return NULL;
 }
