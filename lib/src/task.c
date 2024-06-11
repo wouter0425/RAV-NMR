@@ -14,7 +14,6 @@ void task_A(struct pipe_struct *pipes) {
 
     close(a->read_fd);
 
-
     int value = 42; // Initial value
     char message[BUF_SIZE];
     snprintf(message, sizeof(message), "%d", value);
@@ -26,14 +25,12 @@ void task_A(struct pipe_struct *pipes) {
     exit(0);    
 }
 
-//void task_B(int read_fd, int write_fd) {
 void task_B(struct pipe_struct *pipes) {
     pipe_struct* a = find_pipe_by_name(pipes, "pipe_AB");
     pipe_struct* b = find_pipe_by_name(pipes, "pipe_BC");
 
     close(a->write_fd);
     close(b->read_fd);
-
 
     char buffer[BUF_SIZE];
     fd_set read_fds;

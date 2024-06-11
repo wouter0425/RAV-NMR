@@ -25,11 +25,7 @@ typedef struct {
 } task;
 
 void task_A(struct pipe_struct *pipes);
-//void task_A(int write_fd);
 void task_B(struct pipe_struct *pipes);
-//void task_B(int read_fd, int write_fd);
 void task_C(struct pipe_struct *pipes);
-//void task_C(int read_fd);
-
 
 #endif

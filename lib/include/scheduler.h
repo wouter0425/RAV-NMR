@@ -8,6 +8,7 @@
 typedef struct {
     int m_coreID;
     int m_weight;
+    bool m_active;
 } core;
 
 typedef struct {
@@ -23,5 +24,7 @@ void init_scheduler(scheduler *s);
 void run_tasks(scheduler *s);
 void monitor_tasks(scheduler *s);
 void cleanup_tasks(scheduler *s);
+int find_core(core *c);
+
 
 #endif
