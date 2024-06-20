@@ -8,24 +8,36 @@
 //#include "pipe.h"
 
 // Define the struct for pipe endpoints
-typedef struct pipe_struct {
-    int read_fd;               // File descriptor for the read end
-    int write_fd;              // File descriptor for the write end
-    char *name;                // Name of the pipe
-    struct pipe_struct *next;  // Pointer to the next pipe in the list
-} pipe_struct;
+
+
+typedef struct input {
+    int fd;
+    struct input *next;
+} input;
 
 typedef struct {
+    char *name;
     int cpu_id;
     int m_active;
     bool m_fireable;
     pid_t pid;
-    void (*function)(struct pipe_struct *);
-    pipe_struct *pipes;
+    void (*function)(void);
+    //pipe_struct *pipes;
+    input *inputs;
+    int m_success;
+    int m_fails;
 } task;
 
-void task_A(struct pipe_struct *pipes);
-void task_B(struct pipe_struct *pipes);
-void task_C(struct pipe_struct *pipes);
+void task_A(void);
+void task_B(void);
+void task_C(void);
+
+void task_A_1(void);
+void task_B_1(void);
+void task_B_2(void);
+void task_B_3(void);
+void task_C_1(void);
+
+void voter(void);
 
 #endif

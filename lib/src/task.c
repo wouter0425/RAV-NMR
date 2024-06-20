@@ -9,79 +9,152 @@
 #include "task.h"
 #include "pipe.h"
 
-void task_A(struct pipe_struct *pipes) {
-    pipe_struct* a = find_pipe_by_name(pipes, "pipe_AB");
-
-    close(a->read_fd);
-
-    int value = 42; // Initial value
-    char message[BUF_SIZE];
-    snprintf(message, sizeof(message), "%d", value);
-    write(a->write_fd, message, strlen(message));
-    printf("Task A (PID %d) sent value: %d\n", getpid(), value);
-
-    close(a->write_fd);
-
-    exit(0);    
-}
-
-void task_B(struct pipe_struct *pipes) {
-    pipe_struct* a = find_pipe_by_name(pipes, "pipe_AB");
-    pipe_struct* b = find_pipe_by_name(pipes, "pipe_BC");
-
-    close(a->write_fd);
-    close(b->read_fd);
-
-    char buffer[BUF_SIZE];
-    fd_set read_fds;
-    FD_ZERO(&read_fds);
-    FD_SET(a->read_fd, &read_fds);
-
-    // Wait for data to be available in the pipe
-    if (select(a->read_fd + 1, &read_fds, NULL, NULL, NULL) > 0) {
-        if (FD_ISSET(a->read_fd, &read_fds)) {
-        ssize_t num_bytes = read(a->read_fd, buffer, BUF_SIZE);
-        if (num_bytes > 0) {
-            buffer[num_bytes] = '\0'; // Null-terminate the string
-            int value = atoi(buffer);
-            value++;
-            snprintf(buffer, sizeof(buffer), "%d", value);
-            write(b->write_fd, buffer, strlen(buffer));
-            printf("Task B (PID %d) received value: %d, incremented to: %d\n", getpid(), value-1, value);
-        }
-        }
-    }
-
-    close(a->read_fd);
-    close(b->write_fd);
-
-    exit(0);  
-}
-
-void task_C(struct pipe_struct *pipes) {
+void task_A(void) {
+    int value = 42;
     char buffer[BUF_SIZE];
 
-    pipe_struct* b = find_pipe_by_name(pipes, "pipe_BC");
+    snprintf(buffer, sizeof(buffer), "%d", value);
+    write_to_pipe(AB, buffer);
+    usleep(100);
 
-    close(b->write_fd);
+    exit(0);
+}
 
-    fd_set read_fds;
-    FD_ZERO(&read_fds);
-    FD_SET(b->read_fd, &read_fds);
+void task_A_1(void) {
+    int value = 42;
+    char buffer[BUF_SIZE];
 
-    // Wait for data to be available in the pipe
-    if (select(b->read_fd + 1, &read_fds, NULL, NULL, NULL) > 0) {
-        if (FD_ISSET(b->read_fd, &read_fds)) {
-            ssize_t num_bytes = read(b->read_fd, buffer, BUF_SIZE);
-            if (num_bytes > 0) {
-                buffer[num_bytes] = '\0'; // Null-terminate the string
-                int value = atoi(buffer);
-                printf("Task C (PID %d) received final value: %d\n", getpid(), value);
-            }
-        }
+    snprintf(buffer, sizeof(buffer), "%d", value);
+
+    write_to_pipe(AB_1, buffer);
+    write_to_pipe(AB_2, buffer);
+    write_to_pipe(AB_3, buffer);
+
+    usleep(1000);
+
+    exit(0);
+}
+
+void task_B(void) {
+    char buffer[BUF_SIZE];
+
+    // Read from pipe AB
+    if (read_from_pipe(AB, buffer, BUF_SIZE)) {
+        int value = atoi(buffer);
+        value++;
+        snprintf(buffer, sizeof(buffer), "%d", value);
+
+        // Write to pipe BC
+        write_to_pipe(BC, buffer);
+
+        usleep(100); // Avoid busy loop
+
+        exit(0);
+    }
+    exit(1);
+}
+
+void task_B_1(void) {
+    char buffer[BUF_SIZE];
+
+    // Read from pipe AB
+    if (read_from_pipe(AB_1, buffer, BUF_SIZE)) {
+        int value = atoi(buffer);
+        value++;
+        snprintf(buffer, sizeof(buffer), "%d", value);
+
+        // Write to pipe BC
+        write_to_pipe(BC_1, buffer);
+
+        //usleep(1000); // Avoid busy loop
     }
 
-    close(b->read_fd);
+    exit(0);
+}
 
-    exit(0);    
+void task_B_2(void) {
+    char buffer[BUF_SIZE];
+
+    // Read from pipe AB
+    if (read_from_pipe(AB_2, buffer, BUF_SIZE)) {
+        int value = atoi(buffer);
+        value++;
+        snprintf(buffer, sizeof(buffer), "%d", value);
+
+        // Write to pipe BC
+        write_to_pipe(BC_2, buffer);
+
+        //usleep(1000); // Avoid busy loop
+    }
+
+    exit(0);
+}
+
+void task_B_3(void) {
+    char buffer[BUF_SIZE];
+
+    // Read from pipe AB
+    if (read_from_pipe(AB_3, buffer, BUF_SIZE)) {
+        int value = atoi(buffer);
+        value++;
+        snprintf(buffer, sizeof(buffer), "%d", value);
+
+        // Write to pipe BC
+        write_to_pipe(BC_3, buffer);
+
+        //usleep(1000); // Avoid busy loop
+    }
+
+    exit(0);
+}
+
+void task_C(void) {
+    char buffer[BUF_SIZE];
+
+    if (read_from_pipe(BC, buffer, BUF_SIZE)) {
+        int value = atoi(buffer);
+        usleep(100);
+        exit(0);
+    }
+
+    exit(1);
+}
+
+void task_C_1(void) {
+    char buffer[BUF_SIZE];
+
+    if (read_from_pipe(CD, buffer, BUF_SIZE)) {
+        int value = atoi(buffer);
+    }
+
+    exit(0);
+}
+
+void voter(void) {
+    char buffer1[BUF_SIZE], buffer2[BUF_SIZE], buffer3[BUF_SIZE];
+    char outputBuffer[BUF_SIZE];
+    bool read1, read2, read3;
+
+    read1 = read_from_pipe(BC_1, buffer1, BUF_SIZE);
+    read2 = read_from_pipe(BC_1, buffer2, BUF_SIZE);
+    read3 = read_from_pipe(BC_1, buffer3, BUF_SIZE);
+
+    if (read1 && read2 && strcmp(buffer1, buffer2) == 0) {
+        strncpy(outputBuffer, buffer1, BUF_SIZE);
+    } else if (read1 && read3 && strcmp(buffer1, buffer3) == 0) {
+        strncpy(outputBuffer, buffer1, BUF_SIZE);
+    } else if (read2 && read3 && strcmp(buffer2, buffer3) == 0) {
+        strncpy(outputBuffer, buffer2, BUF_SIZE);
+    } else if (read1) {
+        strncpy(outputBuffer, buffer1, BUF_SIZE);
+    } else if (read2) {
+        strncpy(outputBuffer, buffer2, BUF_SIZE);
+    } else if (read3) {
+        strncpy(outputBuffer, buffer3, BUF_SIZE);
+    } else {
+        // If no valid data is read, handle the error or set a default value
+        strncpy(outputBuffer, "Nop", BUF_SIZE);
+    }
+
+    write_to_pipe(CD, outputBuffer);
 }
