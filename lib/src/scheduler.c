@@ -51,10 +51,10 @@ void run_tasks(scheduler *s)
     // Fork and set CPU affinity for each task
     for (int i = 0; i < NUM_OF_TASKS && s->m_tasks[i].m_fireable == true; i++) {
         s->m_tasks[i].cpu_id = find_core(s->m_cores);
-
         pid_t pid = fork();
+
         if (pid == -1) {
-            perror("fork");
+            printf("error \n");
             exit(EXIT_FAILURE);
         } else if (pid == 0) {
             // Set CPU affinity for the task
@@ -72,7 +72,6 @@ void run_tasks(scheduler *s)
                 exit(EXIT_FAILURE);
             }
 
-            printf("Core: %d \t %s \n",s->m_tasks[i].cpu_id, s->m_tasks[i].name);
             s->m_tasks[i].function();
 
             exit(EXIT_SUCCESS);
@@ -80,7 +79,7 @@ void run_tasks(scheduler *s)
         } else {
             s->m_tasks[i].pid = pid;
             s->m_tasks[i].m_active = true;
-            s->m_tasks[i].m_fireable = false;
+            s->m_cores[s->m_tasks[i].cpu_id].m_active = true;
         }
     }
 }
@@ -88,16 +87,23 @@ void run_tasks(scheduler *s)
 void monitor_tasks(scheduler *s)
 {
     for (int i = 0; i < NUM_OF_TASKS; i++) {
-        int status;
-        pid_t result = waitpid(s->m_tasks[i].pid, &status, WNOHANG);
+        // Check
+        if (task_input_full(&s->m_tasks[i]) && !s->m_tasks[i].m_active) {
+            s->m_tasks[i].m_fireable = true;
+        }
+        else {
+            s->m_tasks[i].m_fireable = false;
+        }
 
-        if (result == 0) {
-            continue; // Task is still running
-        } else if (result == -1) {
-            continue; // Skip to the next task on error
-        } else {
+        if (!s->m_tasks[i].m_fireable && s->m_tasks[i].m_active) {
+            int status;
+            pid_t result = waitpid(s->m_tasks[i].pid, &status, WNOHANG);
+
             // Task has finished
-            if (WIFEXITED(status)) {
+            if (result == 0) {
+                continue; // Skip to the next task on error
+            }
+            else if (WIFEXITED(status)) {
                 if (WEXITSTATUS(status) == 0) {
                     s->m_tasks[i].m_success++;
                     // Increase the core reliability after a successfull run
@@ -108,23 +114,19 @@ void monitor_tasks(scheduler *s)
                     s->m_tasks[i].m_fails++;
                     s->m_cores[s->m_tasks[i].cpu_id].m_weight *= 0.9;
                 }
+                //s->m_tasks[i].m_active = false;
 
-            } else if (WIFSIGNALED(status)) {
+            }
+            else if (WIFSIGNALED(status)) {
                 s->m_cores[s->m_tasks[i].cpu_id].m_weight *= 0.9;
                 s->m_tasks[i].m_fails++;
-                if (s->m_tasks[i].m_active) {
-                    // Decrease the reliability of a core if the task was terminated by a signal
-                }
             }
 
+            s->m_tasks[i].m_active = false;
             s->m_cores[s->m_tasks[i].cpu_id].runs++;
+            s->m_cores[s->m_tasks[i].cpu_id].m_active = false;
 
-            if (task_input_full(&s->m_tasks[i])) {
-                // Restart the task and let the core know it is available
-                s->m_tasks[i].m_fireable = true;
-                s->m_tasks[i].m_active = false;
-                s->m_cores[s->m_tasks[i].cpu_id].m_active = false;
-            }
+
         }
     }
 }
@@ -133,12 +135,13 @@ void start_scheduler(scheduler *s)
 {
     while(active(s))
     {
-        run_tasks(s);
         monitor_tasks(s);
+        run_tasks(s);
+        //usleep(200000);
     }
 }
 
-void add_task(scheduler *s, int id, const char *name, void (*function)(void))
+void add_task(scheduler *s, int id, const char *name, int period, void (*function)(void))
 {
     s->m_tasks[id].name = strdup(name);
     s->m_tasks[id].function = function;
@@ -146,7 +149,12 @@ void add_task(scheduler *s, int id, const char *name, void (*function)(void))
     s->m_tasks[id].m_fails = 0;
     s->m_tasks[id].m_success = 0;
     s->m_tasks[id].m_active = false;
-    s->m_tasks[id].m_fireable = true;
+    if (period) {
+        s->m_tasks[id].m_fireable = true;
+    }
+    else {
+        s->m_tasks[id].m_fireable = false;
+    }
 
     return;
 }
@@ -182,6 +190,7 @@ int find_core(core *c)
             // if the weight is the same, but the core has more runs, balance the load
             if (c[i].runs < c[core_id].runs) {
                 core_id = i;
+                //printf("test \n");
             }
         }
 #else

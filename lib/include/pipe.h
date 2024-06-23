@@ -33,7 +33,7 @@ extern pipe_struct *CD;
 //void declare_pipe(int new_pipe[2]);
 pipe_struct *declare_pipe(const char *pipe_name);
 void add_pipe(task *t, pipe_struct *new_pipe);
-void add_input(input *inputs, int fd);
+void add_input(input **inputs, int fd);
 //void close_pipes(task *t);
 pipe_struct *declare_pipe(const char *pipe_name);
 //pipe_struct *find_pipe_by_name(task *t, const char *pipe_name);

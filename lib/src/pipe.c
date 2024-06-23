@@ -41,28 +41,51 @@ pipe_struct *find_pipe_by_name(pipe_struct *pipes, const char *pipe_name) {
     return NULL;
 }
 
-void add_input(input *inputs, int fd)
-{
+void add_input(input **inputs, int fd) {
     input *new_input = (input *)malloc(sizeof(input));
 
     if (new_input == NULL) {
-        perror("Failed to allocate memory for new pipe");
+        perror("Failed to allocate memory for new input");
         exit(EXIT_FAILURE);
     }
 
     new_input->fd = fd;
     new_input->next = NULL;
 
-    if (inputs == NULL) {
-        inputs = new_input;
+    if (*inputs == NULL) {
+        *inputs = new_input;  // Update the head pointer if the list is empty
     } else {
-        input *current = inputs;
+        input *current = *inputs;
         while (current->next != NULL) {
             current = current->next;
         }
-        current->next = new_input;
+        current->next = new_input;  // Append the new input to the end of the list
     }
 }
+
+// void add_input(input *inputs, int fd)
+// {
+//     input *new_input = (input *)malloc(sizeof(input));
+
+//     if (new_input == NULL) {
+//         perror("Failed to allocate memory for new pipe");
+//         exit(EXIT_FAILURE);
+//     }
+
+//     new_input->fd = fd;
+//     new_input->next = NULL;
+//     int counter = 0;
+//     if (inputs == NULL) {
+//         inputs = new_input;
+//     } else {
+//         input *current = inputs;
+//         while (current->next != NULL) {
+//             current = current->next;
+//         }
+
+//         current->next = new_input;
+//     }
+// }
 
 int count_content(pipe_struct *p)
 {
@@ -102,25 +125,70 @@ void freePipes(pipe_struct *p)
     }
 }
 
-bool is_pipe_content_available(int pipe_fd) {
-    int bytes_available;
-    if (ioctl(pipe_fd, FIONREAD, &bytes_available) < 0) {
-        perror("ioctl");
-        return false;
-    }
-    return bytes_available > 0;
-}
+// bool is_pipe_content_available(int pipe_fd) {
+//     int bytes_available;
+//     if (ioctl(pipe_fd, FIONREAD, &bytes_available) < 0) {
+//         perror("ioctl");
+//         return false;
+//     }
+//     return bytes_available > 0;
+// }
+
+// bool task_input_full(task *t) {
+//     input *current = t->inputs;
+//     int counter = 0;
+//     while (current != NULL) {
+//         if (!is_pipe_content_available(current->fd)) {
+//             return false;
+//         }
+//         current = current->next;
+//         counter++;
+//     }
+//     return true;
+// }
 
 bool task_input_full(task *t) {
+    fd_set read_fds;
+    struct timeval timeout;
+    int max_fd = 0;
     input *current = t->inputs;
-    int counter = 0;
+
+    // Initialize the set of file descriptors to be checked.
+    FD_ZERO(&read_fds);
+
+    //Add each file descriptor to the set and find the maximum file descriptor value.
     while (current != NULL) {
-        if (!is_pipe_content_available(current->fd)) {
+        FD_SET(current->fd, &read_fds);
+        if (current->fd > max_fd) {
+            max_fd = current->fd;
+        }
+        current = current->next;
+    }
+
+    //Set the timeout value (e.g., 0 seconds and 0 microseconds means no waiting).
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+
+    //Use select to check if data is available on any of the file descriptors.
+    int result = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+
+    if (result < 0) {
+        perror("select");
+        return false;
+    }
+
+    // Check if all file descriptors are ready.
+    current = t->inputs;
+
+    while (current != NULL) {
+        if (!FD_ISSET(current->fd, &read_fds)) {
+            //printf("FD_ISSET: %d \n", FD_ISSET(current->fd, &read_fds));
+            //printf("not ready: %s \n", t->name);
             return false;
         }
         current = current->next;
-        counter++;
     }
+    //printf("ready: %s \n", t->name);
     return true;
 }
 

@@ -32,7 +32,8 @@ void cleanup_tasks(scheduler *s);
 int find_core(core *c);
 void printResults(scheduler *s);
 bool active(scheduler *s);
-void add_task(scheduler *s, int id, const char *name, void (*function)(void));
+//void add_task(scheduler *s, int id, const char *name, void (*function)(void));
+void add_task(scheduler *s, int id, const char *name, int period, void (*function)(void));
 void start_scheduler(scheduler *s);
 
 

@@ -7,6 +7,7 @@
 //#define TRUE 1
 //#define FALSE 0
 
+//#define DEBUG
 
 #define RELIABILITY_SCHEDULING
 //#define NMR
@@ -18,7 +19,7 @@
 #endif
 
 /* Runtime in seconds */
-#define MAX_RUN_TIME 1
+#define MAX_RUN_TIME 10
 
 
 #endif

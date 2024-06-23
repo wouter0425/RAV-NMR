@@ -46,12 +46,12 @@ int main()
 
     CD = declare_pipe("pipe_CD");
 
-    add_task(&s, 0, "task_A_1", task_A_1);
-    add_task(&s, 1, "task_B_1", task_B_1);
-    add_task(&s, 2, "task_B_2", task_B_2);
-    add_task(&s, 3, "task_B_3", task_B_3);
-    add_task(&s, 4, "voter", voter);
-    add_task(&s, 5, "task_C_1", task_C_1);
+    add_task(&s, 0, "task_A_1", 1, task_A_1);
+    add_task(&s, 1, "task_B_1", 0, task_B_1);
+    add_task(&s, 2, "task_B_2", 0, task_B_2);
+    add_task(&s, 3, "task_B_3", 0, task_B_3);
+    add_task(&s, 4, "voter", 0, voter);
+    add_task(&s, 5, "task_C_1", 0, task_C_1);
 
     add_input(s.m_tasks[2].inputs, AB_2->read_fd);
 
@@ -68,12 +68,12 @@ int main()
     BC = declare_pipe("pipe_BC");
 
     // Create the tasks
-    add_task(&s, 0, "task_A", task_A);
-    add_task(&s, 1, "task_B", task_B);
-    add_task(&s, 2, "task_C", task_C);
+    add_task(&s, 0, "task_A", 1, task_A);
+    add_task(&s, 1, "task_B", 0, task_B);
+    add_task(&s, 2, "task_C", 0, task_C);
 
-    add_input(s.m_tasks[1].inputs, AB->read_fd);
-    add_input(s.m_tasks[2].inputs, BC->read_fd);
+    add_input(&s.m_tasks[1].inputs, AB->read_fd);
+    add_input(&s.m_tasks[2].inputs, BC->read_fd);
 #endif
 
     init_scheduler(&s);

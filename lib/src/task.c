@@ -10,11 +10,16 @@
 #include "pipe.h"
 
 void task_A(void) {
+    //printf("task A \n");
     int value = 42;
     char buffer[BUF_SIZE];
 
     snprintf(buffer, sizeof(buffer), "%d", value);
     write_to_pipe(AB, buffer);
+
+#ifdef DEBUG
+    printf("task A: write: %d \n", value);
+#endif
     usleep(100);
 
     exit(0);
@@ -43,7 +48,9 @@ void task_B(void) {
         int value = atoi(buffer);
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
-
+#ifdef DEBUG
+        printf("task B: read: %d \t write: %d \n", value - 1, value);
+#endif
         // Write to pipe BC
         write_to_pipe(BC, buffer);
 
@@ -51,6 +58,7 @@ void task_B(void) {
 
         exit(0);
     }
+
     exit(1);
 }
 
@@ -113,10 +121,13 @@ void task_C(void) {
 
     if (read_from_pipe(BC, buffer, BUF_SIZE)) {
         int value = atoi(buffer);
+#ifdef DEBUG
+        printf("task C: read: %d \n", value);
+#endif
         usleep(100);
         exit(0);
     }
-
+    printf("C crashed \n");
     exit(1);
 }
 
