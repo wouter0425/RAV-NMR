@@ -19,10 +19,11 @@
 // Create the scheduler
 scheduler s;
 
+#ifndef NMR
 pipe_struct *AB;
 pipe_struct *BC;
 pipe_struct *CD;
-
+#elif
 pipe_struct *AB_1;
 pipe_struct *AB_2;
 pipe_struct *AB_3;
@@ -30,7 +31,7 @@ pipe_struct *AB_3;
 pipe_struct *BC_1;
 pipe_struct *BC_2;
 pipe_struct *BC_3;
-
+#endif
 
 int main()
 {
@@ -53,15 +54,21 @@ int main()
     add_task(&s, 4, "voter", 0, voter);
     add_task(&s, 5, "task_C_1", 0, task_C_1);
 
-    add_input(s.m_tasks[2].inputs, AB_2->read_fd);
+    add_input(&s.m_tasks[1].inputs, AB_1->read_fd);
+    add_input(&s.m_tasks[2].inputs, AB_2->read_fd);
+    add_input(&s.m_tasks[3].inputs, AB_3->read_fd);
 
-    add_input(s.m_tasks[3].inputs, AB_3->read_fd);
+    add_input(&s.m_tasks[5].inputs, CD->read_fd);
 
-    add_input(s.m_tasks[4].inputs, BC_1->read_fd);
-    add_input(s.m_tasks[4].inputs, BC_2->read_fd);
-    add_input(s.m_tasks[4].inputs, BC_3->read_fd);
+    s.m_replicates[0] = 1;
+    s.m_tasks[1].m_replicate = true;
+    s.m_replicates[1] = 2;
+    s.m_tasks[2].m_replicate = true;
+    s.m_replicates[2] = 3;
+    s.m_tasks[3].m_replicate = true;
 
-    add_input(s.m_tasks[5].inputs, CD->read_fd);
+    s.m_voter = 4;
+
 #else
     // Normal operation
     AB = declare_pipe("pipe_AB");
@@ -72,13 +79,24 @@ int main()
     add_task(&s, 1, "task_B", 0, task_B);
     add_task(&s, 2, "task_C", 0, task_C);
 
+    // Set input for tasks
     add_input(&s.m_tasks[1].inputs, AB->read_fd);
     add_input(&s.m_tasks[2].inputs, BC->read_fd);
 #endif
 
     init_scheduler(&s);
 
-    start_scheduler(&s);
+    // Scheduler loop
+    while(active(&s))
+    {
+        monitor_tasks(&s);
+        run_tasks(&s);
+#ifdef LOGGING
+        log_results(&s);
+#endif
+    }
+
+    write_results_to_csv(&s);
 
     printResults(&s);
 

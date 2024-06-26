@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <signal.h>
 #include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -39,6 +40,10 @@ void init_scheduler(scheduler *s)
     CPU_SET(0, &cpuset);
     CPU_SET(0, &cpuset);
     s->m_activationTime = time(NULL);
+    s->m_log_timeout = time(NULL);
+    s->m_counter = 0;
+
+    printf("start time: %ld \n", s->m_activationTime);
 
     if (sched_setaffinity(0, sizeof(cpuset), &cpuset) != 0) {
         perror("sched_setaffinity");
@@ -87,7 +92,7 @@ void run_tasks(scheduler *s)
 void monitor_tasks(scheduler *s)
 {
     for (int i = 0; i < NUM_OF_TASKS; i++) {
-        // Check
+        // Only launch when input is full and/or the task is activated
         if (task_input_full(&s->m_tasks[i]) && !s->m_tasks[i].m_active) {
             s->m_tasks[i].m_fireable = true;
         }
@@ -95,50 +100,68 @@ void monitor_tasks(scheduler *s)
             s->m_tasks[i].m_fireable = false;
         }
 
+        // Monitor active tasks
         if (!s->m_tasks[i].m_fireable && s->m_tasks[i].m_active) {
             int status;
             pid_t result = waitpid(s->m_tasks[i].pid, &status, WNOHANG);
 
             // Task has finished
             if (result == 0) {
-                continue; // Skip to the next task on error
+                continue;
             }
             else if (WIFEXITED(status)) {
+                // Task ended successfull
                 if (WEXITSTATUS(status) == 0) {
-                    s->m_tasks[i].m_success++;
                     // Increase the core reliability after a successfull run
-                    if (s->m_cores[s->m_tasks[i].cpu_id].m_weight < MAX_CORE_WEIGHT) {
-                        s->m_cores[s->m_tasks[i].cpu_id].m_weight *= 1.1;
+                    s->m_tasks[i].m_success++;
+                    s->m_cores[s->m_tasks[i].cpu_id].m_weight *= 1.1;
+
+                    // Prevent runaway core weight
+                    if (s->m_cores[s->m_tasks[i].cpu_id].m_weight > MAX_CORE_WEIGHT) {
+                        s->m_cores[s->m_tasks[i].cpu_id].m_weight = 100;
                     }
+
                 } else {
+                    // Decrease reliability after a process returned with an non-zero exit code
                     s->m_tasks[i].m_fails++;
                     s->m_cores[s->m_tasks[i].cpu_id].m_weight *= 0.9;
                 }
-                //s->m_tasks[i].m_active = false;
 
             }
             else if (WIFSIGNALED(status)) {
+                // Decrease reliability after a process crash on a core
                 s->m_cores[s->m_tasks[i].cpu_id].m_weight *= 0.9;
                 s->m_tasks[i].m_fails++;
             }
 
+            // Update task and core state
             s->m_tasks[i].m_active = false;
             s->m_cores[s->m_tasks[i].cpu_id].runs++;
             s->m_cores[s->m_tasks[i].cpu_id].m_active = false;
 
-
+            // TODO: Ugly fix to distinguish between normal and replicate task
+            if (s->m_tasks[i].m_replicate) {
+                s->m_tasks[i].m_finished = true;
+            }
         }
     }
-}
 
-void start_scheduler(scheduler *s)
-{
-    while(active(s))
-    {
-        monitor_tasks(s);
-        run_tasks(s);
-        //usleep(200000);
+#ifdef NMR
+    // TODO: Ugly fix to check if all replicates have finished
+    int counter = 0;
+    for (int i = 0; i < NUM_OF_TASKS; i++) {
+        if (s->m_tasks[i].m_replicate && s->m_tasks[i].m_finished) {
+            counter++;
+        }
     }
+
+    if (counter == 3) {
+        s->m_tasks[s->m_voter].m_fireable = true;
+    }
+    else {
+        s->m_tasks[s->m_voter].m_fireable = false;
+    }
+#endif
 }
 
 void add_task(scheduler *s, int id, const char *name, int period, void (*function)(void))
@@ -149,6 +172,11 @@ void add_task(scheduler *s, int id, const char *name, int period, void (*functio
     s->m_tasks[id].m_fails = 0;
     s->m_tasks[id].m_success = 0;
     s->m_tasks[id].m_active = false;
+    s->m_tasks[id].m_replicate = false;
+    s->m_tasks[id].m_voter = false;
+    s->m_tasks[id].m_finished = false;
+
+    // Set only cyclic tasks to be fireable
     if (period) {
         s->m_tasks[id].m_fireable = true;
     }
@@ -209,11 +237,18 @@ int find_core(core *c)
 
 bool active(scheduler *s)
 {
-    if (difftime(time(NULL), s->m_activationTime) < MAX_RUN_TIME)
+    time_t currentTime = time(NULL);
+
+    // Convert current time and activation time to milliseconds
+    long currentTimeMs = currentTime * 1000;
+    long activationTimeMs = s->m_activationTime * 1000;
+
+    if (currentTimeMs - activationTimeMs < MAX_RUN_TIME)
     {
         return true;
     }
-    else {
+    else
+    {
         return false;
     }
 }
@@ -229,4 +264,63 @@ void printResults(scheduler *s)
     {
         printf("Core: %d \t runs: %d \t weight: %f \n", s->m_cores[i].m_coreID, s->m_cores[i].runs, s->m_cores[i].m_weight);
     }
+}
+
+void log_results(scheduler *s) {
+    long currentTimeMs = current_time_in_ms();
+
+    if ((currentTimeMs - s->m_log_timeout > MAX_LOG_INTERVAL) && (s->m_counter < NUM_OF_SAMPLES)) {
+        for (int i = 0; i < NUM_OF_CORES; i++) {
+            s->m_results[s->m_counter].m_cores[i] = s->m_cores[i].runs;
+            s->m_results[s->m_counter].m_weights[i] = s->m_cores[i].m_weight;
+        }
+
+        s->m_log_timeout = currentTimeMs;
+        s->m_counter++;
+        printf("Log entry added. Counter: %d\n", s->m_counter);
+    } else if ((currentTimeMs - s->m_log_timeout > MAX_LOG_INTERVAL) && (s->m_counter >= NUM_OF_SAMPLES)) {
+        printf("Sample limit reached. No more entries added.\n");
+    }
+}
+
+void write_results_to_csv(scheduler *s) {
+    FILE *file = fopen("output.txt", "w");
+    if (!file) {
+        perror("Failed to open file");
+        return;
+    }
+
+    // Write the header
+    for (int i = 1; i < NUM_OF_CORES; i++) {
+        fprintf(file, "core_%d", i);
+        if (i < NUM_OF_CORES - 1) {
+            fprintf(file, "\t");
+        }
+    }
+    for (int i = 1; i < NUM_OF_CORES; i++) {
+        fprintf(file, "\tweight_%d", i);
+    }
+    fprintf(file, "\n");
+
+    // Write the data
+    for (int i = 1; i < s->m_counter; i++) {
+        for (int j = 1; j < NUM_OF_CORES; j++) {
+            fprintf(file, "%d", s->m_results[i].m_cores[j]);
+            if (j < NUM_OF_CORES - 1) {
+                fprintf(file, "\t");
+            }
+        }
+        for (int j = 1; j < NUM_OF_CORES; j++) {
+            fprintf(file, "\t%.2f", s->m_results[i].m_weights[j]);
+        }
+        fprintf(file, "\n");
+    }
+
+    fclose(file);
+}
+
+long current_time_in_ms() {
+    struct timespec spec;
+    clock_gettime(CLOCK_REALTIME, &spec);
+    return (spec.tv_sec * 1000) + (spec.tv_nsec / 1000000);
 }

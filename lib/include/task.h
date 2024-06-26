@@ -26,6 +26,9 @@ typedef struct {
     input *inputs;
     int m_success;
     int m_fails;
+    bool m_voter;
+    bool m_replicate;
+    bool m_finished;
 } task;
 
 void task_A(void);

@@ -8,6 +8,9 @@
         "defines.h": "c",
         "task.h": "c",
         "stdbool.h": "c",
-        "stdarg.h": "c"
+        "stdarg.h": "c",
+        "string.h": "c",
+        "pthread.h": "c",
+        "system_error": "c"
     }
 }

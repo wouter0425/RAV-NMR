@@ -8,6 +8,7 @@
 //#define FALSE 0
 
 //#define DEBUG
+#define LOGGING
 
 #define RELIABILITY_SCHEDULING
 //#define NMR
@@ -19,7 +20,9 @@
 #endif
 
 /* Runtime in seconds */
-#define MAX_RUN_TIME 10
+#define MAX_RUN_TIME 10000
+#define MAX_LOG_INTERVAL    100
+#define NUM_OF_SAMPLES  10000
 
 
 #endif
