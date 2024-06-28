@@ -9,12 +9,37 @@
 #include "task.h"
 #include "pipe.h"
 
+task::task()
+{
+
+}
+
+task::task(const string& name, int period, void (*function)(void))
+{
+    m_name = name;
+    m_function = function;
+    m_inputs = NULL;
+    m_fails = 0;
+    m_success = 0;
+    m_active = false;
+    m_replicate = false;
+    m_voter = false;
+    m_finished = false;
+
+    // Set only cyclic tasks to be fireable
+    if (period) {
+        m_fireable = true;
+    }
+    else {
+        m_fireable = false;
+    }
+}
+
 #ifndef NMR
 void task_A(void) {
-    //printf("task A \n");
     int value = 42;
     char buffer[BUF_SIZE];
-
+    
     snprintf(buffer, sizeof(buffer), "%d", value);
 
     usleep(100);

@@ -1,31 +1,34 @@
-#include  <sys/select.h>
+#include <sys/select.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 
+#include <string>
+
 #include "pipe.h"
 #include "task.h"
 
-pipe_struct *declare_pipe(const char *pipe_name) {
+using namespace std;
+
+Pipe::Pipe(int read_fd, int write_fd, const char* name, Pipe *next)
+{
+    m_read_fd = read_fd;
+    m_write_fd = write_fd;
+    m_name = strdup(name);
+    m_next = next;
+}
+
+Pipe *declare_pipe(const char *pipe_name) {
     int pipe_fds[2];
     if (pipe(pipe_fds) == -1) {
         perror("pipe");
         exit(EXIT_FAILURE);
     }
 
-    pipe_struct *new_pipe = (pipe_struct *)malloc(sizeof(pipe_struct));
-    if (new_pipe == NULL) {
-        perror("Failed to allocate memory for new pipe");
-        exit(EXIT_FAILURE);
-    }
+    Pipe *p = new Pipe(pipe_fds[0], pipe_fds[1], pipe_name, NULL);
 
-    new_pipe->read_fd = pipe_fds[0];
-    new_pipe->write_fd = pipe_fds[1];
-    new_pipe->name = strdup(pipe_name);
-    new_pipe->next = NULL;
-
-    return new_pipe;
+    return p;
 }
 
 void add_input(input **inputs, int fd) {
@@ -56,7 +59,7 @@ bool task_input_full(task *t) {
     fd_set read_fds;
     struct timeval timeout;
     int max_fd = 0;
-    input *current = t->inputs;
+    input *current = t->get_inputs();
 
     // Initialize the set of file descriptors to be checked.
     FD_ZERO(&read_fds);
@@ -83,49 +86,49 @@ bool task_input_full(task *t) {
     }
 
     // Check if all file descriptors are ready.
-    current = t->inputs;
+    current = t->get_inputs();
 
     while (current != NULL) {
+
+        printf("task: %s \t input: %d \n", t->get_name().c_str(), current->fd);
         if (!FD_ISSET(current->fd, &read_fds)) {
-            //printf("FD_ISSET: %d \n", FD_ISSET(current->fd, &read_fds));
-            //printf("not ready: %s \n", t->name);
             return false;
         }
         current = current->next;
     }
-    //printf("ready: %s \n", t->name);
+
     return true;
 }
 
-void open_pipe_read_end(pipe_struct *pipe) {
-    close(pipe->write_fd);  // Close the write end if it's open
+void open_pipe_read_end(Pipe *pipe) {
+    close(pipe->get_write_fd());  // Close the write end if it's open
 }
 
-void open_pipe_write_end(pipe_struct *pipe) {
-    close(pipe->read_fd);
+void open_pipe_write_end(Pipe *pipe) {
+    close(pipe->get_read_fd());
 }
 
-void close_pipe_read_end(pipe_struct *pipe) {
-    close(pipe->read_fd);
+void close_pipe_read_end(Pipe *pipe) {
+    close(pipe->get_read_fd());
 }
 
-void close_pipe_write_end(pipe_struct *pipe) {
-    close(pipe->write_fd);
+void close_pipe_write_end(Pipe *pipe) {
+    close(pipe->get_write_fd());
 }
 
-bool read_from_pipe(pipe_struct *pipe, char *buffer, size_t buf_size) {
+bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size) {
     // Ensure the write end is closed
     open_pipe_read_end(pipe);
 
     fd_set read_fds;
     FD_ZERO(&read_fds);
-    FD_SET(pipe->read_fd, &read_fds);
+    FD_SET(pipe->get_read_fd(), &read_fds);
 
     // Wait until the pipe is ready for reading
-    int ready = select(pipe->read_fd + 1, &read_fds, NULL, NULL, NULL);
+    int ready = select(pipe->get_read_fd() + 1, &read_fds, NULL, NULL, NULL);
     if (ready > 0) {
         // Leave space for null terminator
-        ssize_t num_bytes = read(pipe->read_fd, buffer, buf_size - 1);
+        ssize_t num_bytes = read(pipe->get_read_fd(), buffer, buf_size - 1);
         if (num_bytes > 0) {
             // Null-terminate the string
             buffer[num_bytes] = '\0';
@@ -141,12 +144,12 @@ bool read_from_pipe(pipe_struct *pipe, char *buffer, size_t buf_size) {
     return false;
 }
 
-void write_to_pipe(pipe_struct *pipe, const char *buffer) {
+void write_to_pipe(Pipe *pipe, const char *buffer) {
     // Ensure the read end is closed
     open_pipe_write_end(pipe);
 
     // Include the null terminator
-    write(pipe->write_fd, buffer, strlen(buffer) + 1);
+    write(pipe->get_write_fd(), buffer, strlen(buffer) + 1);
 
     // Close the write end after use
     close_pipe_write_end(pipe);

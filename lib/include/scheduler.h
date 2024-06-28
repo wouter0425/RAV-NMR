@@ -3,48 +3,82 @@
 
 #include <stdbool.h>
 #include <stdarg.h>
+#include <vector>
+#include <string>
+
 #include "defines.h"
 #include "task.h"
 
-typedef struct {
-    int m_coreID;
-    float m_weight;
-    bool m_active;
-    int runs;
-} core;
+class core {
+    private:
+        int m_coreID;
+        float m_weight;
+        bool m_active;
+        int m_runs;
 
-typedef struct {
-    int m_cores[NUM_OF_CORES];
-    float m_weights[NUM_OF_CORES];
-} result;
+    public:
+        int get_coreID() { return m_coreID; }
+        void set_coreID(int coreID) { m_coreID = coreID; }
 
-typedef struct {
-    task m_tasks[NUM_OF_TASKS];
-    core m_cores[NUM_OF_CORES];
-    time_t m_activationTime;
-    time_t m_log_timeout;
-    int m_replicates[3];
-    int m_voter;
-    int m_counter;
-    result m_results[NUM_OF_SAMPLES];
-} scheduler;
+        float get_weight() { return m_weight; }
+        void set_weight(float weight) { m_weight = weight; }
+        void increase_weight() { m_weight += INCREASE; }
+        void decrease_weight() { m_weight += DECREASE; }
+
+        bool get_active() { return m_active; }
+        void set_active(bool active) { m_active = active; }
+
+        int get_runs() { return m_runs; }
+        void set_runs(int runs) { m_runs = runs; }
+        void increase_runs() { m_runs++; }
+};
+
+class result {
+    private:
+
+    public:
+        int m_cores[NUM_OF_CORES];
+        float m_weights[NUM_OF_CORES];
+};
+
+class scheduler {
+    private:
+        task m_tasks[NUM_OF_TASKS];
+        core m_cores[NUM_OF_CORES];
+        //vector<task> m_tasks;
+        //vector<core> m_cores;
+        time_t m_activationTime;
+        time_t m_log_timeout;
+        int m_replicates[3];
+        int m_voter;
+        int m_counter;
+        result m_results[NUM_OF_SAMPLES];
+
+    public:
+        task* get_task(int i) { return &m_tasks[i]; }
+        void set_replicate(int i, int j) { m_replicates[i] = j; }
+        void set_voter(int i) { m_voter = i; }
+
+        void init_scheduler();
+        void run_tasks();
+        void monitor_tasks();
+        void cleanup_tasks();
+        int find_core();
+        void printResults();
+        bool active();
+        void add_task(int id, const string& name, int period, void (*function)(void));
+        void start_scheduler(scheduler *s);
+        void log_results();
+        void write_results_to_csv();
+
+};
+
 
 
 void handle_signal(int sig);
 bool is_pipe_content_available(int pipe_fd);
-void close_pipes(int, ...);
+//void close_pipes(int, ...);
 
-void init_scheduler(scheduler *s);
-void run_tasks(scheduler *s);
-void monitor_tasks(scheduler *s);
-void cleanup_tasks(scheduler *s);
-int find_core(core *c);
-void printResults(scheduler *s);
-bool active(scheduler *s);
-void add_task(scheduler *s, int id, const char *name, int period, void (*function)(void));
-void start_scheduler(scheduler *s);
-void log_results(scheduler *s);
-void write_results_to_csv(scheduler *s);
 long current_time_in_ms();
 
 #endif

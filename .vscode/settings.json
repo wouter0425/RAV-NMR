@@ -11,6 +11,9 @@
         "stdarg.h": "c",
         "string.h": "c",
         "pthread.h": "c",
-        "system_error": "c"
+        "system_error": "c",
+        "deque": "cpp",
+        "string": "cpp",
+        "vector": "cpp"
     }
 }
