@@ -88,9 +88,7 @@ bool task_input_full(task *t) {
     // Check if all file descriptors are ready.
     current = t->get_inputs();
 
-    while (current != NULL) {
-
-        printf("task: %s \t input: %d \n", t->get_name().c_str(), current->fd);
+    while (current != NULL) {        
         if (!FD_ISSET(current->fd, &read_fds)) {
             return false;
         }

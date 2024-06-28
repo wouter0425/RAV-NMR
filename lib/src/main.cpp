@@ -95,9 +95,8 @@ int main()
         s.monitor_tasks();
         s.run_tasks();
 #ifdef LOGGING
-        log_results(&s);
-#endif
-        usleep(1000000);
+        s.log_results();
+#endif        
     }
 
     s.write_results_to_csv();

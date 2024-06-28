@@ -7,9 +7,9 @@
 //#define TRUE 1
 //#define FALSE 0
 
-#define DEBUG
+//#define DEBUG
 //#define DEBUG_SCHEDULER
-//#define LOGGING
+#define LOGGING
 
 #define RELIABILITY_SCHEDULING
 //#define NMR
