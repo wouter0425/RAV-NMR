@@ -8,10 +8,11 @@
 //#define FALSE 0
 
 //#define DEBUG
-#define LOGGING
+#define DEBUG_SCHEDULER
+//#define LOGGING
 
 #define RELIABILITY_SCHEDULING
-//#define NMR
+#define NMR
 
 #ifdef NMR
 #define NUM_OF_TASKS 6

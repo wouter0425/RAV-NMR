@@ -21,14 +21,14 @@ typedef struct pipe_struct {
 #ifndef NMR
 extern pipe_struct *AB;
 extern pipe_struct *BC;
-#elif
+#else
 extern pipe_struct *AB_1;
 extern pipe_struct *AB_2;
 extern pipe_struct *AB_3;
 extern pipe_struct *BC_1;
 extern pipe_struct *BC_2;
 extern pipe_struct *BC_3;
-extern pipe_struct *CD;
+extern pipe_struct *CD_1;
 #endif
 
 pipe_struct *declare_pipe(const char *pipe_name);

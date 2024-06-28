@@ -16,12 +16,14 @@ void task_A(void) {
     char buffer[BUF_SIZE];
 
     snprintf(buffer, sizeof(buffer), "%d", value);
+
+    usleep(100);
+
     write_to_pipe(AB, buffer);
 
 #ifdef DEBUG
     printf("task A: write: %d \n", value);
 #endif
-    usleep(100);
 
     exit(0);
 }
@@ -34,14 +36,15 @@ void task_B(void) {
         int value = atoi(buffer);
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
-#ifdef DEBUG
-        printf("task B: read: %d \t write: %d \n", value - 1, value);
-#endif
+        
+        usleep(100); // Avoid busy loop
+
         // Write to pipe BC
         write_to_pipe(BC, buffer);
 
-        usleep(100); // Avoid busy loop
-
+#ifdef DEBUG
+        printf("task B: read: %d \t write: %d \n", value - 1, value);
+#endif
         exit(0);
     }
 
@@ -59,22 +62,30 @@ void task_C(void) {
         usleep(100);
         exit(0);
     }
+
+#ifdef DEBUG
     printf("C crashed \n");
+#endif
     exit(1);
 }
 
-#elif
+#else
 void task_A_1(void) {
     int value = 42;
     char buffer[BUF_SIZE];
 
     snprintf(buffer, sizeof(buffer), "%d", value);
 
+    usleep(100);
+
     write_to_pipe(AB_1, buffer);
     write_to_pipe(AB_2, buffer);
     write_to_pipe(AB_3, buffer);
 
-    usleep(100);
+#ifdef DEBUG
+    printf("task A: write: %d \n", value);
+#endif
+
     exit(0);
 }
 
@@ -88,11 +99,15 @@ void task_B_1(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
 
+        usleep(100);
+
         // Write to pipe BC
         write_to_pipe(BC_1, buffer);
-        usleep(100);
-        exit(0);
-        //usleep(1000); // Avoid busy loop
+
+ #ifdef DEBUG
+        printf("task B: read: %d \t write: %d \n", value - 1, value);
+#endif
+        exit(0);        
     }
 
     exit(1);
@@ -106,12 +121,16 @@ void task_B_2(void) {
         int value = atoi(buffer);
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
+        
+        usleep(100);
 
         // Write to pipe BC
         write_to_pipe(BC_2, buffer);
-        usleep(100);
-        exit(0);
-        //usleep(1000); // Avoid busy loop
+
+#ifdef DEBUG
+        printf("task B: read: %d \t write: %d \n", value - 1, value);
+#endif
+        exit(0);       
     }
 
     exit(1);
@@ -125,13 +144,17 @@ void task_B_3(void) {
         int value = atoi(buffer);
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
+        
+        usleep(100);
 
         // Write to pipe BC
         write_to_pipe(BC_3, buffer);
 
-        usleep(100);
+#ifdef DEBUG
+        printf("task B: read: %d \t write: %d \n", value - 1, value);
+#endif
+
         exit(0);
-        //usleep(1000); // Avoid busy loop
     }
 
     exit(1);
@@ -141,9 +164,14 @@ void task_B_3(void) {
 void task_C_1(void) {
     char buffer[BUF_SIZE];
 
-    if (read_from_pipe(CD, buffer, BUF_SIZE)) {
+    if (read_from_pipe(CD_1, buffer, BUF_SIZE)) {
         int value = atoi(buffer);
         usleep(100);
+
+#ifdef DEBUG
+    printf("task C: read: %d \n", value);
+#endif
+
         exit(0);
     }
 
@@ -176,7 +204,11 @@ void voter(void) {
         strncpy(outputBuffer, "Nop", BUF_SIZE);
     }
 
-    write_to_pipe(CD, outputBuffer);
+#ifdef DEBUG
+    printf("Voter \n");
+#endif
+
+    write_to_pipe(CD_1, outputBuffer);
 
     usleep(100);
 }

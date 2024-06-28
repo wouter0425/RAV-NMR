@@ -53,10 +53,20 @@ void init_scheduler(scheduler *s)
 
 void run_tasks(scheduler *s)
 {
+#ifdef DEBUG_SCHEDULER
+        //printf("******* Run loop *******\n");
+#endif
+
     // Fork and set CPU affinity for each task
     for (int i = 0; i < NUM_OF_TASKS && s->m_tasks[i].m_fireable == true; i++) {
         s->m_tasks[i].cpu_id = find_core(s->m_cores);
+
+#ifdef DEBUG_SCHEDULER
+        //printf("Task: %s \n", s->m_tasks[i].name);
+#endif
+
         pid_t pid = fork();
+
 
         if (pid == -1) {
             printf("error \n");
@@ -87,10 +97,17 @@ void run_tasks(scheduler *s)
             s->m_cores[s->m_tasks[i].cpu_id].m_active = true;
         }
     }
+#ifdef DEBUG_SCHEDULER
+    printf("\n");
+#endif
 }
 
 void monitor_tasks(scheduler *s)
 {
+#ifdef DEBUG_SCHEDULER
+    printf("******* Monitor loop *******\n");
+#endif
+
     for (int i = 0; i < NUM_OF_TASKS; i++) {
         // Only launch when input is full and/or the task is activated
         if (task_input_full(&s->m_tasks[i]) && !s->m_tasks[i].m_active) {
@@ -102,6 +119,10 @@ void monitor_tasks(scheduler *s)
 
         // Monitor active tasks
         if (!s->m_tasks[i].m_fireable && s->m_tasks[i].m_active) {
+            
+#ifdef DEBUG_SCHEDULER
+            printf("Task: %s \n", s->m_tasks[i].name);
+#endif
             int status;
             pid_t result = waitpid(s->m_tasks[i].pid, &status, WNOHANG);
 

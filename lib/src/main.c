@@ -22,8 +22,7 @@ scheduler s;
 #ifndef NMR
 pipe_struct *AB;
 pipe_struct *BC;
-pipe_struct *CD;
-#elif
+#else
 pipe_struct *AB_1;
 pipe_struct *AB_2;
 pipe_struct *AB_3;
@@ -31,6 +30,8 @@ pipe_struct *AB_3;
 pipe_struct *BC_1;
 pipe_struct *BC_2;
 pipe_struct *BC_3;
+
+pipe_struct *CD_1;
 #endif
 
 int main()
@@ -45,7 +46,7 @@ int main()
     BC_2 = declare_pipe("pipe_BC_2");
     BC_3 = declare_pipe("pipe_BC_3");
 
-    CD = declare_pipe("pipe_CD");
+    CD_1 = declare_pipe("pipe_CD");
 
     add_task(&s, 0, "task_A_1", 1, task_A_1);
     add_task(&s, 1, "task_B_1", 0, task_B_1);
@@ -58,7 +59,7 @@ int main()
     add_input(&s.m_tasks[2].inputs, AB_2->read_fd);
     add_input(&s.m_tasks[3].inputs, AB_3->read_fd);
 
-    add_input(&s.m_tasks[5].inputs, CD->read_fd);
+    add_input(&s.m_tasks[5].inputs, CD_1->read_fd);
 
     s.m_replicates[0] = 1;
     s.m_tasks[1].m_replicate = true;
@@ -94,6 +95,7 @@ int main()
 #ifdef LOGGING
         log_results(&s);
 #endif
+        usleep(1000000);
     }
 
     write_results_to_csv(&s);
