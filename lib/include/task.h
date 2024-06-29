@@ -4,13 +4,19 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <stdarg.h>
-#include <string.h>
 #include <string>
+#include <vector>
 //#include "pipe.h"
 
 // Define the struct for pipe endpoints
 
 using namespace std;
+
+enum task_state {
+    idle,
+    running,
+    crashed,
+};
 
 typedef struct input {
     int fd;
@@ -24,18 +30,23 @@ class task {
         bool m_active;
         bool m_fireable;
         pid_t m_pid;
-        //void (*m_function)(void);
+        void (*m_function)(void);
         input *m_inputs;
         int m_success;
         int m_fails;
         bool m_voter;
         bool m_replicate;
         bool m_finished;
+        int m_period;
+        unsigned long int m_startTime;
+        task_state m_state;
 
     public:
+
         task(const string& name, int period, void (*function)(void));
         task();
-        void (*m_function)(void);
+
+        bool period_elapsed(unsigned long int currentTime);
 
         string get_name() { return m_name; }
         void set_name(string name) { m_name = name; }
@@ -52,8 +63,9 @@ class task {
         pid_t get_pid() { return m_pid; }
         void set_pid(pid_t p) { m_pid = p; }
 
-        //void (*get_function())(void) { return m_function; }
-        //void set_function(void (*func)(void)) { m_function = func; }
+        void run() { m_function(); }
+
+        void set_startTime(unsigned long int startTime) { m_startTime = startTime; }
 
         input* get_inputs() { return m_inputs; }
         input*& get_inputs_ref() { return m_inputs; }
@@ -75,6 +87,23 @@ class task {
 
         bool get_finished() { return m_finished; }
         void set_finished(bool finished) { m_finished = finished; }
+
+        task_state get_state() { return m_state; }
+        void set_state(task_state state) { m_state = state; }
+};
+
+class voter : public task {
+    private:
+        vector<task*> m_replicates;
+        bool m_armed { false };
+
+    public:
+        voter(const std::string& name, int period, void (*function)(void));
+        bool check_replicate_state(task_state state);
+        void add_replicate(task *t);
+        void set_armed(bool armed) { m_armed = armed; }
+        bool get_armed() { return m_armed; } 
+
 };
 
 void task_A(void);
@@ -87,6 +116,6 @@ void task_B_2(void);
 void task_B_3(void);
 void task_C_1(void);
 
-void voter(void);
+void voter_func(void);
 
 #endif

@@ -56,46 +56,68 @@ void add_input(input **inputs, int fd) {
 }
 
 bool task_input_full(task *t) {
-    fd_set read_fds;
-    struct timeval timeout;
-    int max_fd = 0;
-    input *current = t->get_inputs();
-
-    // Initialize the set of file descriptors to be checked.
-    FD_ZERO(&read_fds);
-
-    //Add each file descriptor to the set and find the maximum file descriptor value.
-    while (current != NULL) {
-        FD_SET(current->fd, &read_fds);
-        if (current->fd > max_fd) {
-            max_fd = current->fd;
-        }
-        current = current->next;
-    }
-
-    //Set the timeout value (e.g., 0 seconds and 0 microseconds means no waiting).
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 0;
-
-    //Use select to check if data is available on any of the file descriptors.
-    int result = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
-
-    if (result < 0) {
-        perror("select");
-        return false;
-    }
-
-    // Check if all file descriptors are ready.
-    current = t->get_inputs();
-
-    while (current != NULL) {        
-        if (!FD_ISSET(current->fd, &read_fds)) {
+    if (t->get_voter()) {
+        voter* v = static_cast<voter*>(t);  // Correct usage of dynamic_cast
+        if (!v) {
             return false;
         }
-        current = current->next;
-    }
 
-    return true;
+        if(v->check_replicate_state(task_state::idle)) {
+            printf("all idle \n");
+        }
+
+        if(v->check_replicate_state(task_state::running)) {
+            v->set_armed(true);
+            printf("all armed \n");
+        }
+        else if ((v->check_replicate_state(task_state::idle) || v->check_replicate_state(task_state::crashed)) && v->get_armed()) {
+            printf("returned true \n");
+            return true;
+        }
+        return false;
+    }    
+    else {
+        fd_set read_fds;
+        struct timeval timeout;
+        int max_fd = 0;
+        input *current = t->get_inputs();
+
+        // Initialize the set of file descriptors to be checked.
+        FD_ZERO(&read_fds);
+
+        //Add each file descriptor to the set and find the maximum file descriptor value.
+        while (current != NULL) {
+            FD_SET(current->fd, &read_fds);
+            if (current->fd > max_fd) {
+                max_fd = current->fd;
+            }
+            current = current->next;
+        }
+
+        //Set the timeout value (e.g., 0 seconds and 0 microseconds means no waiting).
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 0;
+
+        //Use select to check if data is available on any of the file descriptors.
+        int result = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+
+        if (result < 0) {
+            perror("select");
+            return false;
+        }
+
+        // Check if all file descriptors are ready.
+        current = t->get_inputs();
+
+        while (current != NULL) {        
+            if (!FD_ISSET(current->fd, &read_fds)) {
+                return false;
+            }
+            current = current->next;
+        }
+
+        return true;
+    }
 }
 
 void open_pipe_read_end(Pipe *pipe) {

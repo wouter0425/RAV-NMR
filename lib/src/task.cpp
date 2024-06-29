@@ -25,6 +25,9 @@ task::task(const string& name, int period, void (*function)(void))
     m_replicate = false;
     m_voter = false;
     m_finished = false;
+    m_period = period;
+    m_startTime = 0;
+    m_state = task_state::idle;
 
     // Set only cyclic tasks to be fireable
     if (period) {
@@ -35,14 +38,51 @@ task::task(const string& name, int period, void (*function)(void))
     }
 }
 
+bool task::period_elapsed(unsigned long int currentTime)
+{
+    // Acyclic tasks exception
+    if (!m_period) {        
+        return true;
+    }
+
+    if (currentTime - m_startTime > m_period) {                
+        return true;
+    }
+
+    return false;
+}
+
+voter::voter(const string& name, int period, void (*function)(void))
+        : task(name, period, function)
+{
+    set_voter(true);
+}
+
+void voter::add_replicate(task *t)
+{
+    m_replicates.push_back(t);
+}
+
+bool voter::check_replicate_state(task_state state)
+{
+    for (int i = 0; i < m_replicates.size(); ++i) {
+        printf("replicate %d \t state %d %d \n", i , m_replicates[i]->get_state(), m_replicates.size());
+        if (m_replicates[i]->get_state() != state) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
 #ifndef NMR
 void task_A(void) {
     int value = 42;
     char buffer[BUF_SIZE];
-    
+
     snprintf(buffer, sizeof(buffer), "%d", value);
 
-    usleep(100);
+    usleep(TASK_BUSY_TIME);
 
     write_to_pipe(AB, buffer);
 
@@ -62,7 +102,7 @@ void task_B(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
         
-        usleep(100); // Avoid busy loop
+        usleep(TASK_BUSY_TIME);
 
         // Write to pipe BC
         write_to_pipe(BC, buffer);
@@ -81,10 +121,10 @@ void task_C(void) {
 
     if (read_from_pipe(BC, buffer, BUF_SIZE)) {
         int value = atoi(buffer);
+        usleep(TASK_BUSY_TIME);
 #ifdef DEBUG
         printf("task C: read: %d \n", value);
 #endif
-        usleep(100);
         exit(0);
     }
 
@@ -101,7 +141,7 @@ void task_A_1(void) {
 
     snprintf(buffer, sizeof(buffer), "%d", value);
 
-    usleep(100);
+    usleep(TASK_BUSY_TIME);
 
     write_to_pipe(AB_1, buffer);
     write_to_pipe(AB_2, buffer);
@@ -114,7 +154,6 @@ void task_A_1(void) {
     exit(0);
 }
 
-
 void task_B_1(void) {
     char buffer[BUF_SIZE];
 
@@ -124,7 +163,7 @@ void task_B_1(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
 
-        usleep(100);
+        usleep(TASK_BUSY_TIME);
 
         // Write to pipe BC
         write_to_pipe(BC_1, buffer);
@@ -147,7 +186,7 @@ void task_B_2(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
         
-        usleep(100);
+        usleep(TASK_BUSY_TIME);
 
         // Write to pipe BC
         write_to_pipe(BC_2, buffer);
@@ -170,7 +209,7 @@ void task_B_3(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
         
-        usleep(100);
+        usleep(TASK_BUSY_TIME);
 
         // Write to pipe BC
         write_to_pipe(BC_3, buffer);
@@ -185,13 +224,12 @@ void task_B_3(void) {
     exit(1);
 }
 
-
 void task_C_1(void) {
     char buffer[BUF_SIZE];
 
     if (read_from_pipe(CD_1, buffer, BUF_SIZE)) {
         int value = atoi(buffer);
-        usleep(100);
+        usleep(TASK_BUSY_TIME);
 
 #ifdef DEBUG
     printf("task C: read: %d \n", value);
@@ -203,7 +241,7 @@ void task_C_1(void) {
     exit(1);
 }
 
-void voter(void) {
+void voter_func(void) {
     char buffer1[BUF_SIZE], buffer2[BUF_SIZE], buffer3[BUF_SIZE];
     char outputBuffer[BUF_SIZE];
     bool read1, read2, read3;
@@ -211,6 +249,8 @@ void voter(void) {
     read1 = read_from_pipe(BC_1, buffer1, BUF_SIZE);
     read2 = read_from_pipe(BC_1, buffer2, BUF_SIZE);
     read3 = read_from_pipe(BC_1, buffer3, BUF_SIZE);
+
+    usleep(TASK_BUSY_TIME);
 
     if (read1 && read2 && strcmp(buffer1, buffer2) == 0) {
         strncpy(outputBuffer, buffer1, BUF_SIZE);
@@ -235,6 +275,6 @@ void voter(void) {
 
     write_to_pipe(CD_1, outputBuffer);
 
-    usleep(100);
+    exit(0);
 }
 #endif

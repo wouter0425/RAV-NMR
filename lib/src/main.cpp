@@ -47,27 +47,23 @@ int main()
 
     CD_1 = declare_pipe("pipe_CD");
 
-    s.add_task(0, "task_A_1", 1, task_A_1);
-    s.add_task(1, "task_B_1", 0, task_B_1);
-    s.add_task(2, "task_B_2", 0, task_B_2);
-    s.add_task(3, "task_B_3", 0, task_B_3);
-    s.add_task(4, "voter", 0, voter);
-    s.add_task(5, "task_C_1", 0, task_C_1);    
+    s.add_task("task_A_1", 1000, task_A_1); // 0
+    s.add_task("task_B_1", 0, task_B_1);    // 1
+    s.add_task("task_B_2", 0, task_B_2);    // 2
+    s.add_task("task_B_3", 0, task_B_3);    // 3
+    s.add_voter("voter", 0, voter_func);    // 4
+    s.add_task("task_C_1", 0, task_C_1);    // 5
 
-    add_input(&s.get_task(1)->get_inputs_ref(), AB_1->get_read_fd());
-    add_input(&s.get_task(2)->get_inputs_ref(), AB_2->get_read_fd());
-    add_input(&s.get_task(3)->get_inputs_ref(), AB_3->get_read_fd());
-    add_input(&s.get_task(5)->get_inputs_ref(), CD_1->get_read_fd());
+    add_input(&s.find_task("task_B_1")->get_inputs_ref(), AB_1->get_read_fd());
+    add_input(&s.find_task("task_B_2")->get_inputs_ref(), AB_2->get_read_fd());
+    add_input(&s.find_task("task_B_3")->get_inputs_ref(), AB_3->get_read_fd());
+    add_input(&s.find_task("task_C_1")->get_inputs_ref(), CD_1->get_read_fd());
 
-    s.set_replicate(0, 1);
-    s.set_replicate(1, 2);
-    s.set_replicate(2, 3);
+    voter* v = static_cast<voter*>(s.find_task("voter"));
 
-    s.get_task(1)->set_replicate(true);
-    s.get_task(2)->set_replicate(true);
-    s.get_task(3)->set_replicate(true);
-
-    s.set_voter(4);
+    v->add_replicate(s.find_task("task_A_1"));
+    v->add_replicate(s.find_task("task_A_2"));
+    v->add_replicate(s.find_task("task_A_3"));
 
 #else
     // Normal operation
@@ -75,15 +71,15 @@ int main()
     BC = declare_pipe("pipe_BC");
 
     // Create the tasks
-    s.add_task(0, "task_A", 1, task_A);
-    s.add_task(1, "task_B", 0, task_B);
-    s.add_task(2, "task_C", 0, task_C);
+    s.add_task("task_A", 1000, task_A);
+    s.add_task("task_B", 0, task_B);
+    s.add_task("task_C", 0, task_C);
 
     // Set input for tasks
-    add_input(&s.get_task(1)->get_inputs_ref(), AB->get_read_fd());
+    add_input(&s.find_task("task_B")->get_inputs_ref(), AB->get_read_fd());
     //printf("task B: %d \n", AB->get_read_fd());
 
-    add_input(&s.get_task(2)->get_inputs_ref(), BC->get_read_fd());
+    add_input(&s.find_task("task_C")->get_inputs_ref(), BC->get_read_fd());
     //printf("task C: %d \n", BC->get_read_fd());
 #endif
 
@@ -99,7 +95,9 @@ int main()
 #endif        
     }
 
+#ifdef LOGGING
     s.write_results_to_csv();
+#endif
 
     s.printResults();
 

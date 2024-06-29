@@ -60,17 +60,20 @@ class scheduler {
 
     public:
         task* get_task(int i) { return m_tasks[i]; }
-        void set_replicate(int i, int j) { m_replicates[i] = j; }
-        void set_voter(int i) { m_voter = i; }
+        task* find_task(string name);
+        //void set_replicate(int i, int j) { m_replicates[i] = j; }
+        //void set_voter(int i) { m_voter = i; }
 
         void init_scheduler();
         void run_tasks();
         void monitor_tasks();
         void cleanup_tasks();
         int find_core();
+        
         void printResults();
         bool active();
-        void add_task(int id, const string& name, int period, void (*function)(void));
+        void add_task(const string& name, int period, void (*function)(void));
+        void add_voter(const string& name, int period, void (*function)(void));
         void start_scheduler(scheduler *s);
         void log_results();
         void write_results_to_csv();
