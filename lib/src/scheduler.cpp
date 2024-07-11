@@ -16,6 +16,16 @@
 #include "pipe.h"
 #include "defines.h"
 
+/**
+ * @brief Initializes the scheduler by setting up cores and CPU affinity.
+ *
+ * This function performs the following steps:
+ * - Initializes the cores by creating `NUM_OF_CORES` core objects with initial parameters and adds them to the `m_cores` list.
+ * - Sets the activation time and log timeout to the current time.
+ * - Sets the CPU affinity to ensure the scheduler runs on a specific core (`SCHEDULER_CORE`).
+ *
+ * If setting the CPU affinity fails, the function prints an error message and exits the program.
+ */
 void scheduler::init_scheduler()
 {
     // init the cores
@@ -24,192 +34,143 @@ void scheduler::init_scheduler()
         core *c = new core(i, MAX_CORE_WEIGHT, false, 0);
         m_cores.push_back(c);
     }   
+    
+    // Set current time
+    m_activationTime = time(NULL);
+    m_log_timeout = time(NULL);
 
     // Specify the CPU core to run the scheduler on
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);    
     CPU_SET(SCHEDULER_CORE, &cpuset);
-    
-    m_activationTime = time(NULL);
-    m_log_timeout = time(NULL);
 
-    if (sched_setaffinity(0, sizeof(cpuset), &cpuset) != 0) {
+    if (sched_setaffinity(0, sizeof(cpuset), &cpuset) != 0) 
+    {
         perror("sched_setaffinity");
         exit(EXIT_FAILURE);
     }
 }
 
-// void scheduler::monitor_tasks()
-// {
-//     unsigned long current_time = current_time_in_ms();
-
-//     for (int i = 0; i < m_tasks.size(); i++) {
-//         auto &task = m_tasks[i];
-
-//         // Handle task offset
-//         if (!task->offset_elapsed(m_activationTime, current_time)) {
-//             continue;
-//         }
-
-//         // Monitor active tasks
-//         if (!task->get_fireable() && task->get_state() == task_state::running) {
-//             int status;
-//             pid_t result = waitpid(task->get_pid(), &status, WNOHANG);
-
-//             task->set_latest(status, result);
-
-//             if (result == 0) {
-//                 if (task->is_stuck(current_time, status, result)) {
-//                     task->increment_fails();
-//                     m_cores[task->get_cpu_id()]->decrease_weight();
-//                     task->set_state(task_state::crashed);
-//                 } else {
-//                     // Task is still running
-//                     continue;
-//                 }
-//             } else if (result == -1) {
-//                 // Handle waitpid error
-//                 perror("waitpid");
-//                 task->set_state(task_state::idle);
-//             } else if (WIFEXITED(status)) {
-//                 if (WEXITSTATUS(status) == 0) {
-//                     task->set_success(task->get_success() + 1);
-//                     auto &core = m_cores[task->get_cpu_id()];
-//                     core->increase_weight();
-
-//                     if (core->get_weight() > MAX_CORE_WEIGHT) {
-//                         core->set_weight(MAX_CORE_WEIGHT);
-//                     }
-
-//                     task->set_state(task_state::idle);
-//                 } else {
-//                     task->increment_fails();
-//                     m_cores[task->get_cpu_id()]->decrease_weight();
-//                     task->set_state(task_state::crashed);
-//                 }
-//             } else if (WIFSIGNALED(status)) {
-//                 m_cores[task->get_cpu_id()]->decrease_weight();
-//                 task->increment_fails();
-//                 task->set_state(task_state::crashed);
-//             }
-
-//             // Update task and core state
-//             auto &core = m_cores[task->get_cpu_id()];
-//             core->increase_runs();
-//             core->set_active(false);            
-
-//             // Ensure the task state is set to idle if it was running
-//             if (task->get_state() == task_state::running) {
-//                 task->set_state(task_state::idle);
-//             }
-
-//         }
-//         // if (i == m_tasks.size() - 1){
-//         //     for (auto core : m_cores)
-//         //         core->get_active() ? printf("core %d:\t active \n", core->get_coreID()) : printf("core %d:\t idle \n", core->get_coreID());
-//         // }
-
-//                 // Only launch when input is full and/or the task is activated
-//         if (task_input_full(task) && task->get_state() != task_state::running && task->period_elapsed(current_time)) {
-//             task->set_fireable(true);
-//             int core_id = find_core();
-
-//             if (core_id != -1) { // Assuming valid core IDs are non-negative
-//                 task->set_cpu_id(core_id);                
-//                 task->add_core_run(core_id);
-//             } else {
-//                 // No cores available
-//                 task->set_fireable(false);
-//             }
-//         } else {
-//             task->set_fireable(false);
-//         }
-//     }
-
-
-// }
-
+/**
+ * @brief Monitors and manages the state of all tasks in the scheduler.
+ * 
+ * This function monitors the execution of all tasks in the scheduler, checking their status and handling 
+ * task completion. It also determines when new tasks should be launched based on their input and period.
+ * 
+ * The function does the following:
+ * - Retrieves the current time.
+ * - Iterates through all tasks to monitor their state.
+ * - For each task, it checks if the task's startup offset has elapsed. If not, it skips the task.
+ * - For tasks that are currently running, it checks the state of the child process using `waitpid`.
+ *   - If the task is still running (`result == 0`), it checks if the task is stuck. If it is, it marks the 
+ *     task as crashed, increments the failure count, and decreases the core's weight.
+ *   - If the task has finished or an error occurred, it sets the latest status and result for the task, and 
+ *     calls `handle_task_completion` to process the task's completion.
+ * - If the task is not running and its input is full, and the period has elapsed, it prepares the task for 
+ *   launching:
+ *   - It sets the task to fireable and attempts to find a core to run the task on.
+ *   - If a core is found, it assigns the core ID to the task. Otherwise, it marks the task as not fireable.
+ */
 void scheduler::monitor_tasks()
 {
+    int status;
+    pid_t result;
+    
     unsigned long current_time = current_time_in_ms();
 
-    for (int i = 0; i < m_tasks.size(); i++) {
+    for (int i = 0; i < m_tasks.size(); i++) 
+    {
         auto &task = m_tasks[i];
-
-        // Handle task offset
-        if (!task->offset_elapsed(m_activationTime, current_time)) {
+        
+        if (!task->offset_elapsed(m_activationTime, current_time))
             continue;
-        }
+        
+        if (task->get_state() == task_state::running) 
+        {            
+            result = waitpid(task->get_pid(), &status, WNOHANG);
 
-        // Monitor active tasks
-        if (task->get_state() == task_state::running) {
-            int status;
-            pid_t result = waitpid(task->get_pid(), &status, WNOHANG);
-
-            if (result == 0) {
-                // Task is still running, check if it's stuck
-                if (task->is_stuck(current_time, status, result)) {
+            if (result == 0) 
+            {                
+                if (task->is_stuck(current_time, status, result)) 
+                {
                     task->increment_fails();
                     m_cores[task->get_cpu_id()]->decrease_weight();
                     task->set_state(task_state::crashed);
                 }
             } 
-            else {
-                // Task has finished or an error occurred
+            else 
+            {                
                 task->set_latest(status, result);
                 handle_task_completion(task, status, result);
             }
         }
 
-        // Launch tasks if input is full and period has elapsed
-        if (task_input_full(task) && task->get_state() != task_state::running && task->period_elapsed(current_time)) {
+        if (task_input_full(task) && task->get_state() != task_state::running && task->period_elapsed(current_time))
+        {
             task->set_fireable(true);
             int core_id;
 
+#ifdef NMR
+            // The voter gets the most reliable core
             voter* v = static_cast<voter*>(task);
             !v ? core_id = find_core() : core_id = find_core(true);
-
-            if (core_id != -1) {
-                task->set_cpu_id(core_id);
-                task->add_core_run(core_id);
-            } 
-            else {
-                task->set_fireable(false);
-            }
+#endif            
+            (core_id != -1) ? task->set_cpu_id(core_id) : task->set_fireable(false);
         }
-        else {
+        else
+        {
             task->set_fireable(false);
         }
     }
 }
 
-
+/**
+ * @brief Handles the completion of a task and updates its state and associated core metrics.
+ *
+ * @param t Pointer to the task that has completed.
+ * @param status The status code returned by the task's process upon completion.
+ * @param result The result of the waitpid function call used to check the task's status.
+ * 
+ * This function processes the completion status of a given task and updates the task's state 
+ * and the associated core's metrics accordingly. It handles different scenarios based on the 
+ * result and status of the task:
+ * - If the result is -1, it sets the task's state to idle.
+ * - If the task exited normally (WIFEXITED), it checks the exit status:
+ *   - If the exit status is 0, the task is considered successful, and the core's weight is increased.
+ *   - If the exit status is non-zero, it increments the task's failure count, decreases the core's weight, and sets the task's state to crashed.
+ * - If the task was terminated by a signal (WIFSIGNALED), it increments the task's failure count, decreases the core's weight, and sets the task's state to crashed.
+ * 
+ * Finally, it increments the number of runs for the core and marks the core as inactive.
+ */
 void scheduler::handle_task_completion(task *t, int status, pid_t result)
 {
     auto &core = m_cores[t->get_cpu_id()];
 
-    if (result == -1) {
-        // Handle waitpid error
-        perror("waitpid");
+    if (result == -1) 
+    {
         t->set_state(task_state::idle);
     } 
     else if (WIFEXITED(status)) 
     {
-        if (WEXITSTATUS(status) == 0) {
+        if (WEXITSTATUS(status) == 0) 
+        {
             t->set_success(t->get_success() + 1);
             core->increase_weight();
-            if (core->get_weight() > MAX_CORE_WEIGHT) {
+
+            if (core->get_weight() > MAX_CORE_WEIGHT)
                 core->set_weight(MAX_CORE_WEIGHT);
-            }
+
             t->set_state(task_state::idle);
         } 
-        else {
+        else 
+        {
             t->increment_fails();
             core->decrease_weight();
             t->set_state(task_state::crashed);
         }
     } 
-    else if (WIFSIGNALED(status)) {
+    else if (WIFSIGNALED(status)) 
+    {
         t->increment_fails();
         core->decrease_weight();
         t->set_state(task_state::crashed);
@@ -219,30 +180,44 @@ void scheduler::handle_task_completion(task *t, int status, pid_t result)
     core->set_active(false);
 }
 
+/**
+ * @brief Runs fireable tasks by forking processes and setting their CPU affinity.
+ *
+ * This function iterates through all tasks and performs the following steps for each fireable task:
+ * - Sets the start time and increments the run count.
+ * - Forks a new process for the task.
+ * - In the child process, sets the CPU affinity for the task and runs the task.
+ * - In the parent process, sets the task's PID, state to running, and records the core run.
+ *
+ * If forking fails, the function exits the program.
+ */
 void scheduler::run_tasks()
 {
     // Fork and set CPU affinity for each task
-    for (int i = 0; i < m_tasks.size(); i++) {
-        if (m_tasks[i]->get_fireable()) {
+    for (int i = 0; i < m_tasks.size(); i++) 
+    {
+        if (m_tasks[i]->get_fireable()) 
+        {
             m_tasks[i]->set_startTime(current_time_in_ms());     
             m_tasks[i]->increment_runs();        
 
             pid_t pid = fork();
 
-            if (pid == -1) {
+            if (pid == -1) 
+            {
                 exit(EXIT_FAILURE);
             } 
-            else if (pid == 0) {
-                // Set CPU affinity for the task
+            else if (pid == 0) 
+            {
                 cpu_set_t cpuset;
                 CPU_ZERO(&cpuset);
                 CPU_SET(m_tasks[i]->get_cpu_id(), &cpuset);
 
-                if (prctl(PR_SET_NAME, (unsigned long) m_tasks[i]->get_name().c_str()) < 0) {
+                if (prctl(PR_SET_NAME, (unsigned long) m_tasks[i]->get_name().c_str()) < 0)
                     perror("prctl()");
-                }
 
-                if (sched_setaffinity(0, sizeof(cpuset), &cpuset) != 0) {
+                if (sched_setaffinity(0, sizeof(cpuset), &cpuset) != 0) 
+                {
                     perror("sched_setaffinity");
                     exit(EXIT_FAILURE);
                 }
@@ -252,14 +227,27 @@ void scheduler::run_tasks()
                 exit(EXIT_SUCCESS);
 
             } 
-            else {
+            else 
+            {
                 m_tasks[i]->set_pid(pid);
-                m_tasks[i]->set_state(task_state::running);
+                m_tasks[i]->set_state(task_state::running);                
+                m_tasks[i]->add_core_run(m_tasks[i]->get_cpu_id());
             }
         }
     }
 }
 
+/**
+ * @brief Adds a new task to the scheduler.
+ *
+ * @param name The name of the task.
+ * @param period The period of the task.
+ * @param offset The offset of the task.
+ * @param priority The priority of the task.
+ * @param function The function to be executed by the task.
+ *
+ * This function creates a new task object with the specified parameters and adds it to the `m_tasks` list.
+ */
 void scheduler::add_task(const string& name, int period, int offset, int priority, void (*function)(void))
 {
     task* t = new task(name, period, offset, priority, function);
@@ -269,6 +257,18 @@ void scheduler::add_task(const string& name, int period, int offset, int priorit
     return;
 }
 
+/**
+ * @brief Adds a new voter task to the scheduler.
+ *
+ * @param name The name of the voter.
+ * @param period The period of the voter.
+ * @param offset The offset of the voter.
+ * @param priority The priority of the voter.
+ * @param function The function to be executed by the voter.
+ *
+ * This function creates a new voter object with the specified parameters, casts it to a task object, 
+ * and adds it to the `m_tasks` list.
+ */
 void scheduler::add_voter(const string& name, int period, int offset, int priority, void (*function)(void))
 {
     voter* v = new voter(name, period, offset, priority, function);
@@ -278,18 +278,33 @@ void scheduler::add_voter(const string& name, int period, int offset, int priori
     return;
 }
 
+/**
+ * @brief Cleans up all tasks by terminating their processes.
+ *
+ * This function iterates through all tasks, sends a SIGTERM signal to terminate each task's process,
+ * and waits for the process to ensure they are terminated.
+ * It then prints a message indicating that the scheduler is shutting down.
+ */
 void scheduler::cleanup_tasks()
-{
-    // Cleanup: kill all child processes
+{    
     for (int i = 0; i < NUM_OF_TASKS; i++)
     {
         kill(m_tasks[i]->get_pid(), SIGTERM);
-        waitpid(m_tasks[i]->get_pid(), NULL, 0); // Ensure they are terminated
+        waitpid(m_tasks[i]->get_pid(), NULL, 0);
     }
 
     printf("Scheduler shutting down...\n");
 }
 
+/**
+ * @brief Finds a task by its name.
+ *
+ * @param name The name of the task to find.
+ * @return A pointer to the task if found, otherwise NULL.
+ *
+ * This function iterates through the `m_tasks` list and compares each task's name with the specified name.
+ * If a matching task is found, it returns a pointer to the task. Otherwise, it returns NULL.
+ */
 task* scheduler::find_task(string name)
 {
     for (auto& t : m_tasks)
@@ -302,6 +317,18 @@ task* scheduler::find_task(string name)
     return NULL;
 }
 
+/**
+ * @brief Finds a free core for a task to run on.
+ *
+ * @param isVoter Indicates whether the task is a voter.
+ * @return The ID of the free core if found, otherwise -1.
+ *
+ * This function iterates through the cores (excluding the scheduler core) to find a free core for the task.
+ * - If `isVoter` is true, it finds the most reliable inactive core based on weight and run count.
+ * - If `isVoter` is false, it finds any inactive core with the fewest runs.
+ *
+ * If no free core is found, it returns -1. Otherwise, it marks the found core as active and returns its ID.
+ */
 int scheduler::find_core(bool isVoter)
 {
     // Always skip the first core, this is used for the scheduler
@@ -312,12 +339,10 @@ int scheduler::find_core(bool isVoter)
         if (isVoter)
         {
             // If core is inactive and is more reliable
-            if (!m_cores[i]->get_active()) {
-                if (core_id == -1 || 
-                    m_cores[i]->get_weight() > m_cores[core_id]->get_weight() || 
-                    (m_cores[i]->get_weight() == m_cores[core_id]->get_weight() && m_cores[i]->get_runs() < m_cores[core_id]->get_runs())) {
+            if (!m_cores[i]->get_active()) 
+            {
+                if (core_id == -1 || m_cores[i]->get_weight() > m_cores[core_id]->get_weight() || (m_cores[i]->get_weight() == m_cores[core_id]->get_weight() && m_cores[i]->get_runs() < m_cores[core_id]->get_runs()))
                     core_id = i;
-                }
             }
         }
         else
@@ -328,14 +353,22 @@ int scheduler::find_core(bool isVoter)
     }
 
     if (core_id == -1)
-        return -1;  // No free core found    
-
-    // Change the core state
+        return -1;
+    
     m_cores[core_id]->set_active(true);    
 
     return core_id;
 }
 
+/**
+ * @brief Checks if the scheduler is active based on the run time or task iterations.
+ *
+ * @return True if the scheduler is active, otherwise false.
+ *
+ * The function determines if the scheduler should continue running based on the following conditions:
+ * - If `TIME_BASED` is defined, it checks if the current time minus the activation time is less than `MAX_RUN_TIME`.
+ * - Otherwise, it checks if the total number of successes and failures for the first task is less than `MAX_ITERATIONS`.
+ */
 bool scheduler::active()
 {
 #ifdef TIME_BASED
@@ -354,9 +387,8 @@ bool scheduler::active()
 
 #ifdef RUN_LOG
     if (m_runs != m_tasks[0]->get_runs())
-    {
         printf("run: %d \n", m_tasks[0]->get_runs());
-    }
+    
     m_runs = m_tasks[0]->get_runs();
     
 #endif

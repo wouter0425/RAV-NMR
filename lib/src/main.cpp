@@ -95,8 +95,8 @@ int main()
         s.run_tasks();
 #ifdef LOGGING
         s.log_results();
-#endif        
-        usleep(10);
+#endif   
+        usleep(10); // Prevents busy loop
     }
 
 #ifdef LOGGING
@@ -107,7 +107,6 @@ int main()
 
     s.cleanup_tasks();
 
-    exit(0);
     return 0;
 }
 
