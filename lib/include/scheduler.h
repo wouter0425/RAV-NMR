@@ -42,14 +42,13 @@ class result {
         long m_time;
         vector<int> m_cores;
         vector<float> m_weights;
+        vector<int> m_tasks;
         result(vector<task*> tasks, vector<core*> cores, long mSeconds);
 
 };
 
 class scheduler {
     private:
-        //task m_tasks[NUM_OF_TASKS];
-        //core m_cores[NUM_OF_CORES];
         vector<task*> m_tasks;
         vector<core*> m_cores;
         vector<result*> m_results;
@@ -57,23 +56,23 @@ class scheduler {
         time_t m_log_timeout;
         int m_replicates[3];
         int m_voter;
+        int m_runs { 0 };
 
     public:
         task* get_task(int i) { return m_tasks[i]; }
         task* find_task(string name);
-        //void set_replicate(int i, int j) { m_replicates[i] = j; }
-        //void set_voter(int i) { m_voter = i; }
 
         void init_scheduler();
         void run_tasks();
         void monitor_tasks();
+        void handle_task_completion(task *t, int status, pid_t result);
         void cleanup_tasks();
-        int find_core();
+        int find_core(bool isVoter = false);
         
         void printResults();
         bool active();
-        void add_task(const string& name, int period, void (*function)(void));
-        void add_voter(const string& name, int period, void (*function)(void));
+        void add_task(const string& name, int period, int offset, int priority, void (*function)(void));
+        void add_voter(const string& name, int period, int offset, int priority, void (*function)(void));
         void start_scheduler(scheduler *s);
         void log_results();
         void write_results_to_csv();
@@ -81,8 +80,6 @@ class scheduler {
 };
 
 
-
-void handle_signal(int sig);
 bool is_pipe_content_available(int pipe_fd);
 //void close_pipes(int, ...);
 string generateOutputString(const string& prefix);

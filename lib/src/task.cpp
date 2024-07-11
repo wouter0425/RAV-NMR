@@ -14,7 +14,7 @@ task::task()
 
 }
 
-task::task(const string& name, int period, void (*function)(void))
+task::task(const string& name, int period, int offset, int priority, void (*function)(void))
 {
     m_name = name;
     m_function = function;
@@ -26,16 +26,24 @@ task::task(const string& name, int period, void (*function)(void))
     m_voter = false;
     m_finished = false;
     m_period = period;
+    m_offset = offset;
     m_startTime = 0;
+    m_priority = priority;
     m_state = task_state::idle;
 
     // Set only cyclic tasks to be fireable
-    if (period) {
-        m_fireable = true;
-    }
-    else {
-        m_fireable = false;
-    }
+    period ? m_fireable = true : m_fireable = false;
+
+    for (int i = 0; i < NUM_OF_CORES; i++)
+        m_coreRuns[i] = 0;
+}
+
+bool task::offset_elapsed(unsigned long int startTime, unsigned long int currentTime)
+{
+    if (!m_offset)
+        return true;
+    else if (currentTime - startTime > m_offset)
+        return true;
 }
 
 bool task::period_elapsed(unsigned long int currentTime)
@@ -44,16 +52,23 @@ bool task::period_elapsed(unsigned long int currentTime)
     if (!m_period) {        
         return true;
     }
-
-    if (currentTime - m_startTime > m_period) {                
+    else if (currentTime - m_startTime > m_period) {                
         return true;
     }
 
     return false;
 }
 
-voter::voter(const string& name, int period, void (*function)(void))
-        : task(name, period, function)
+bool task::is_stuck(unsigned long int elapsedTime, int status, pid_t result)
+{
+    if (elapsedTime - m_startTime > MAX_STUCK_TIME  && m_latestResult == result && m_latestStatus == status)
+        return true;
+
+    return false;
+}
+
+voter::voter(const string& name, int period, int offset, int priority, void (*function)(void))
+        : task(name, period, offset, priority, function)
 {
     set_voter(true);
 }
@@ -61,19 +76,53 @@ voter::voter(const string& name, int period, void (*function)(void))
 void voter::add_replicate(task *t)
 {
     m_replicates.push_back(t);
+    m_replicateMonitor.push_back({t->get_name(), false});
 }
 
 bool voter::check_replicate_state(task_state state)
 {
-    for (int i = 0; i < m_replicates.size(); ++i) {
-        printf("replicate %d \t state %d %d \n", i , m_replicates[i]->get_state(), m_replicates.size());
-        if (m_replicates[i]->get_state() != state) {
+    for (int i = 0; i < m_replicates.size(); i++) 
+    {        
+        if (m_replicates[i]->get_state() != state)
             return false;
-        }
     }
     return true;
 }
 
+bool voter::get_voter_fireable()
+{
+    // Check if the voter is armed
+    if (!m_armed)
+    {
+        // Check and update the armed status of each replicate
+        bool armed = true;
+        for (size_t i = 0; i < m_replicates.size(); ++i)
+        {
+            if (m_replicates[i]->get_state() == task_state::running)
+                m_replicateMonitor[i].armed = true;
+
+            if (!m_replicateMonitor[i].armed)
+                armed = false;
+        }
+
+        m_armed = armed;
+        return false;
+    }
+
+    // Check if all replicates are no longer running
+    for (size_t i = 0; i < m_replicates.size(); ++i)
+    {
+        if (m_replicates[i]->get_state() != task_state::running)
+            m_replicateMonitor[i].armed = false;
+
+        if (m_replicateMonitor[i].armed)
+            return false;
+    }
+
+    // If all replicates are no longer running, reset armed state and return true
+    m_armed = false;            
+    return true;
+}
 
 #ifndef NMR
 void task_A(void) {
@@ -82,7 +131,8 @@ void task_A(void) {
 
     snprintf(buffer, sizeof(buffer), "%d", value);
 
-    usleep(TASK_BUSY_TIME);
+    for (int i = 0; i < TASK_BUSY_TIME; i++)
+        usleep(1);
 
     write_to_pipe(AB, buffer);
 
@@ -102,7 +152,8 @@ void task_B(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
         
-        usleep(TASK_BUSY_TIME);
+        for (int i = 0; i < TASK_BUSY_TIME; i++)
+            usleep(1);
 
         // Write to pipe BC
         write_to_pipe(BC, buffer);
@@ -121,7 +172,10 @@ void task_C(void) {
 
     if (read_from_pipe(BC, buffer, BUF_SIZE)) {
         int value = atoi(buffer);
-        usleep(TASK_BUSY_TIME);
+        
+        for (int i = 0; i < TASK_BUSY_TIME; i++)
+            usleep(1);
+
 #ifdef DEBUG
         printf("task C: read: %d \n", value);
 #endif
@@ -141,7 +195,8 @@ void task_A_1(void) {
 
     snprintf(buffer, sizeof(buffer), "%d", value);
 
-    usleep(TASK_BUSY_TIME);
+    for (int i = 0; i < TASK_BUSY_TIME; i++)
+        usleep(1);
 
     write_to_pipe(AB_1, buffer);
     write_to_pipe(AB_2, buffer);
@@ -163,7 +218,8 @@ void task_B_1(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
 
-        usleep(TASK_BUSY_TIME);
+        for (int i = 0; i < TASK_BUSY_TIME; i++)
+            usleep(1);
 
         // Write to pipe BC
         write_to_pipe(BC_1, buffer);
@@ -186,7 +242,8 @@ void task_B_2(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
         
-        usleep(TASK_BUSY_TIME);
+        for (int i = 0; i < TASK_BUSY_TIME; i++)
+            usleep(1);
 
         // Write to pipe BC
         write_to_pipe(BC_2, buffer);
@@ -209,7 +266,8 @@ void task_B_3(void) {
         value++;
         snprintf(buffer, sizeof(buffer), "%d", value);
         
-        usleep(TASK_BUSY_TIME);
+        for (int i = 0; i < TASK_BUSY_TIME; i++)
+            usleep(1);
 
         // Write to pipe BC
         write_to_pipe(BC_3, buffer);
@@ -229,7 +287,9 @@ void task_C_1(void) {
 
     if (read_from_pipe(CD_1, buffer, BUF_SIZE)) {
         int value = atoi(buffer);
-        usleep(TASK_BUSY_TIME);
+        
+        for (int i = 0; i < TASK_BUSY_TIME; i++)
+            usleep(1);
 
 #ifdef DEBUG
     printf("task C: read: %d \n", value);
@@ -250,8 +310,6 @@ void voter_func(void) {
     read2 = read_from_pipe(BC_1, buffer2, BUF_SIZE);
     read3 = read_from_pipe(BC_1, buffer3, BUF_SIZE);
 
-    usleep(TASK_BUSY_TIME);
-
     if (read1 && read2 && strcmp(buffer1, buffer2) == 0) {
         strncpy(outputBuffer, buffer1, BUF_SIZE);
     } else if (read1 && read3 && strcmp(buffer1, buffer3) == 0) {
@@ -266,7 +324,7 @@ void voter_func(void) {
         strncpy(outputBuffer, buffer3, BUF_SIZE);
     } else {
         // If no valid data is read, handle the error or set a default value
-        strncpy(outputBuffer, "Nop", BUF_SIZE);
+        //strncpy(outputBuffer, "Nop", BUF_SIZE);
     }
 
 #ifdef DEBUG

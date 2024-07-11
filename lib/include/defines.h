@@ -1,13 +1,29 @@
 #ifndef DEFINES_H
 #define DEFINES_H
 
+/* Runtime in seconds */
+#define MAX_RUN_TIME 40000
+#define MAX_ITERATIONS 500
+#define MAX_STUCK_TIME 50
+
+#define TASK_BUSY_TIME  500
+#define MAX_LOG_INTERVAL    100
+#define NUM_OF_SAMPLES  10000
+
 #define NUM_OF_CORES 4
+#define SCHEDULER_CORE  4
 #define MAX_CORE_WEIGHT 100.0
 #define BUF_SIZE 4
+#define INCREASE    1.1
+#define DECREASE    0.9
 
- #define DEBUG
+//#define TIME_BASED
+#define ITERATION_BASED
+
+//#define DEBUG
 //#define DEBUG_SCHEDULER
-// #define LOGGING
+#define LOGGING
+//#define RUN_LOG
 
 //#define RELIABILITY_SCHEDULING
 #define NMR
@@ -18,13 +34,6 @@
 #define NUM_OF_TASKS 3
 #endif
 
-/* Runtime in seconds */
-#define MAX_RUN_TIME 10000
-#define TASK_BUSY_TIME  1000
-#define MAX_LOG_INTERVAL    100
-#define NUM_OF_SAMPLES  10000
 
-#define INCREASE    1.1
-#define DECREASE    0.9
 
 #endif

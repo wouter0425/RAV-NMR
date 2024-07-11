@@ -45,7 +45,8 @@ void add_input(input **inputs, int fd) {
     if (*inputs == NULL) {
         // Update the head pointer if the list is empty
         *inputs = new_input;
-    } else {
+    } 
+    else {
         input *current = *inputs;
         while (current->next != NULL) {
             current = current->next;
@@ -55,26 +56,22 @@ void add_input(input **inputs, int fd) {
     }
 }
 
-bool task_input_full(task *t) {
+bool task_input_full(task *t) 
+{
     if (t->get_voter()) {
-        voter* v = static_cast<voter*>(t);  // Correct usage of dynamic_cast
+        voter* v = static_cast<voter*>(t);
         if (!v) {
             return false;
         }
 
-        if(v->check_replicate_state(task_state::idle)) {
-            printf("all idle \n");
-        }
-
-        if(v->check_replicate_state(task_state::running)) {
-            v->set_armed(true);
-            printf("all armed \n");
-        }
-        else if ((v->check_replicate_state(task_state::idle) || v->check_replicate_state(task_state::crashed)) && v->get_armed()) {
-            printf("returned true \n");
-            return true;
-        }
-        return false;
+        // if(v->check_replicate_state(task_state::running)) {
+        //     v->set_armed(true);
+        // }
+        // else if ((!v->check_replicate_state(task_state::running)) && v->get_armed()) {
+        //     v->set_armed(false);
+        //     return true;
+        // }
+        return v->get_voter_fireable();
     }    
     else {
         fd_set read_fds;
@@ -85,8 +82,13 @@ bool task_input_full(task *t) {
         // Initialize the set of file descriptors to be checked.
         FD_ZERO(&read_fds);
 
-        //Add each file descriptor to the set and find the maximum file descriptor value.
+        // Add each file descriptor to the set and find the maximum file descriptor value.
         while (current != NULL) {
+            if (current->fd < 0) {
+                // Invalid file descriptor, handle the error as appropriate
+                fprintf(stderr, "Invalid file descriptor: %d\n", current->fd);                
+                return false;
+            }
             FD_SET(current->fd, &read_fds);
             if (current->fd > max_fd) {
                 max_fd = current->fd;
@@ -94,11 +96,11 @@ bool task_input_full(task *t) {
             current = current->next;
         }
 
-        //Set the timeout value (e.g., 0 seconds and 0 microseconds means no waiting).
+        // Set the timeout value (e.g., 0 seconds and 0 microseconds means no waiting).
         timeout.tv_sec = 0;
         timeout.tv_usec = 0;
 
-        //Use select to check if data is available on any of the file descriptors.
+        // Use select to check if data is available on any of the file descriptors.
         int result = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
 
         if (result < 0) {
@@ -109,15 +111,15 @@ bool task_input_full(task *t) {
         // Check if all file descriptors are ready.
         current = t->get_inputs();
 
-        while (current != NULL) {        
+        while (current != NULL) {
             if (!FD_ISSET(current->fd, &read_fds)) {
                 return false;
             }
             current = current->next;
         }
 
-        return true;
-    }
+    }    
+    return true;
 }
 
 void open_pipe_read_end(Pipe *pipe) {
@@ -143,17 +145,12 @@ bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size) {
     fd_set read_fds;
     FD_ZERO(&read_fds);
     FD_SET(pipe->get_read_fd(), &read_fds);
-
-    // Wait until the pipe is ready for reading
+    
     int ready = select(pipe->get_read_fd() + 1, &read_fds, NULL, NULL, NULL);
     if (ready > 0) {
-        // Leave space for null terminator
         ssize_t num_bytes = read(pipe->get_read_fd(), buffer, buf_size - 1);
         if (num_bytes > 0) {
-            // Null-terminate the string
             buffer[num_bytes] = '\0';
-
-            // Close the read end after use
             close_pipe_read_end(pipe);
             return true;
         }

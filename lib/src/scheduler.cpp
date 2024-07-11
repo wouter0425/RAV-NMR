@@ -1,4 +1,3 @@
-#include <signal.h>
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -17,13 +16,6 @@
 #include "pipe.h"
 #include "defines.h"
 
-void handle_signal(int sig) {
-    if (sig == SIGINT) {
-        printf("Scheduler received SIGINT, shutting down...\n");
-        exit(EXIT_SUCCESS);
-    }
-}
-
 void scheduler::init_scheduler()
 {
     // init the cores
@@ -31,16 +23,12 @@ void scheduler::init_scheduler()
     {
         core *c = new core(i, MAX_CORE_WEIGHT, false, 0);
         m_cores.push_back(c);
-    }
-
-    // exit handler function
-    signal(SIGINT, handle_signal);
+    }   
 
     // Specify the CPU core to run the scheduler on
     cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(0, &cpuset);
-    CPU_SET(0, &cpuset);
+    CPU_ZERO(&cpuset);    
+    CPU_SET(SCHEDULER_CORE, &cpuset);
     
     m_activationTime = time(NULL);
     m_log_timeout = time(NULL);
@@ -51,111 +39,200 @@ void scheduler::init_scheduler()
     }
 }
 
+// void scheduler::monitor_tasks()
+// {
+//     unsigned long current_time = current_time_in_ms();
+
+//     for (int i = 0; i < m_tasks.size(); i++) {
+//         auto &task = m_tasks[i];
+
+//         // Handle task offset
+//         if (!task->offset_elapsed(m_activationTime, current_time)) {
+//             continue;
+//         }
+
+//         // Monitor active tasks
+//         if (!task->get_fireable() && task->get_state() == task_state::running) {
+//             int status;
+//             pid_t result = waitpid(task->get_pid(), &status, WNOHANG);
+
+//             task->set_latest(status, result);
+
+//             if (result == 0) {
+//                 if (task->is_stuck(current_time, status, result)) {
+//                     task->increment_fails();
+//                     m_cores[task->get_cpu_id()]->decrease_weight();
+//                     task->set_state(task_state::crashed);
+//                 } else {
+//                     // Task is still running
+//                     continue;
+//                 }
+//             } else if (result == -1) {
+//                 // Handle waitpid error
+//                 perror("waitpid");
+//                 task->set_state(task_state::idle);
+//             } else if (WIFEXITED(status)) {
+//                 if (WEXITSTATUS(status) == 0) {
+//                     task->set_success(task->get_success() + 1);
+//                     auto &core = m_cores[task->get_cpu_id()];
+//                     core->increase_weight();
+
+//                     if (core->get_weight() > MAX_CORE_WEIGHT) {
+//                         core->set_weight(MAX_CORE_WEIGHT);
+//                     }
+
+//                     task->set_state(task_state::idle);
+//                 } else {
+//                     task->increment_fails();
+//                     m_cores[task->get_cpu_id()]->decrease_weight();
+//                     task->set_state(task_state::crashed);
+//                 }
+//             } else if (WIFSIGNALED(status)) {
+//                 m_cores[task->get_cpu_id()]->decrease_weight();
+//                 task->increment_fails();
+//                 task->set_state(task_state::crashed);
+//             }
+
+//             // Update task and core state
+//             auto &core = m_cores[task->get_cpu_id()];
+//             core->increase_runs();
+//             core->set_active(false);            
+
+//             // Ensure the task state is set to idle if it was running
+//             if (task->get_state() == task_state::running) {
+//                 task->set_state(task_state::idle);
+//             }
+
+//         }
+//         // if (i == m_tasks.size() - 1){
+//         //     for (auto core : m_cores)
+//         //         core->get_active() ? printf("core %d:\t active \n", core->get_coreID()) : printf("core %d:\t idle \n", core->get_coreID());
+//         // }
+
+//                 // Only launch when input is full and/or the task is activated
+//         if (task_input_full(task) && task->get_state() != task_state::running && task->period_elapsed(current_time)) {
+//             task->set_fireable(true);
+//             int core_id = find_core();
+
+//             if (core_id != -1) { // Assuming valid core IDs are non-negative
+//                 task->set_cpu_id(core_id);                
+//                 task->add_core_run(core_id);
+//             } else {
+//                 // No cores available
+//                 task->set_fireable(false);
+//             }
+//         } else {
+//             task->set_fireable(false);
+//         }
+//     }
+
+
+// }
 
 void scheduler::monitor_tasks()
 {
-    for (int i = 0; i < m_tasks.size(); i++) {
-        // Only launch when input is full and/or the task is activated
-        if (task_input_full(m_tasks[i]) && m_tasks[i]->get_state() != task_state::running && m_tasks[i]->period_elapsed(current_time_in_ms())) {        
-            
-            m_tasks[i]->set_fireable(true);    
-            int core_id = find_core();
+    unsigned long current_time = current_time_in_ms();
 
-            if (core_id) {
-                m_tasks[i]->set_cpu_id(core_id);
-            }
-            else {
-                // No cores available
-                m_tasks[i]->set_fireable(false);
-            }
-        }
-        else {
-            m_tasks[i]->set_fireable(false);
+    for (int i = 0; i < m_tasks.size(); i++) {
+        auto &task = m_tasks[i];
+
+        // Handle task offset
+        if (!task->offset_elapsed(m_activationTime, current_time)) {
+            continue;
         }
 
         // Monitor active tasks
-        if (!m_tasks[i]->get_fireable() && m_tasks[i]->get_state() == task_state::running) {
+        if (task->get_state() == task_state::running) {
             int status;
-            pid_t result = waitpid(m_tasks[i]->get_pid(), &status, WNOHANG);
+            pid_t result = waitpid(task->get_pid(), &status, WNOHANG);
 
-            // Task has finished
             if (result == 0) {
-                continue;
-            }
-            else if (WIFEXITED(status)) {
-                // Task ended successfull
-                if (WEXITSTATUS(status) == 0) {
-                    // Increase the core reliability after a successfull run
-                    m_tasks[i]->set_success(m_tasks[i]->get_success() + 1);
-                    m_cores[m_tasks[i]->get_cpu_id()]->increase_weight();                    
-
-                    // Prevent runaway core weight
-                    if (m_cores[m_tasks[i]->get_cpu_id()]->get_weight() > MAX_CORE_WEIGHT) {
-                        m_cores[m_tasks[i]->get_cpu_id()]->set_weight(100);
-                    }
-
-                    m_tasks[i]->set_state(task_state::idle);
-                } 
-                else {
-                    // Decrease reliability after a process returned with an non-zero exit code
-                    m_tasks[i]->increment_fails();
-                    m_cores[m_tasks[i]->get_cpu_id()]->decrease_weight();
-                    m_tasks[i]->set_state(task_state::crashed);
+                // Task is still running, check if it's stuck
+                if (task->is_stuck(current_time, status, result)) {
+                    task->increment_fails();
+                    m_cores[task->get_cpu_id()]->decrease_weight();
+                    task->set_state(task_state::crashed);
                 }
-
-            }
-            else if (WIFSIGNALED(status)) {
-                // Decrease reliability after a process crash on a core
-                m_cores[m_tasks[i]->get_cpu_id()]->decrease_weight();
-                m_tasks[i]->increment_fails();
-                m_tasks[i]->set_state(task_state::crashed);
-            }
-
-            // Update task and core state
-            m_cores[m_tasks[i]->get_cpu_id()]->increase_runs();
-            m_cores[m_tasks[i]->get_cpu_id()]->set_active(false);
-
-            // TODO: Ugly fix to distinguish between normal and replicate task
-            if (m_tasks[i]->get_replicate()) {
-                m_tasks[i]->set_finished(true);
+            } 
+            else {
+                // Task has finished or an error occurred
+                task->set_latest(status, result);
+                handle_task_completion(task, status, result);
             }
         }
+
+        // Launch tasks if input is full and period has elapsed
+        if (task_input_full(task) && task->get_state() != task_state::running && task->period_elapsed(current_time)) {
+            task->set_fireable(true);
+            int core_id;
+
+            voter* v = static_cast<voter*>(task);
+            !v ? core_id = find_core() : core_id = find_core(true);
+
+            if (core_id != -1) {
+                task->set_cpu_id(core_id);
+                task->add_core_run(core_id);
+            } 
+            else {
+                task->set_fireable(false);
+            }
+        }
+        else {
+            task->set_fireable(false);
+        }
+    }
+}
+
+
+void scheduler::handle_task_completion(task *t, int status, pid_t result)
+{
+    auto &core = m_cores[t->get_cpu_id()];
+
+    if (result == -1) {
+        // Handle waitpid error
+        perror("waitpid");
+        t->set_state(task_state::idle);
+    } 
+    else if (WIFEXITED(status)) 
+    {
+        if (WEXITSTATUS(status) == 0) {
+            t->set_success(t->get_success() + 1);
+            core->increase_weight();
+            if (core->get_weight() > MAX_CORE_WEIGHT) {
+                core->set_weight(MAX_CORE_WEIGHT);
+            }
+            t->set_state(task_state::idle);
+        } 
+        else {
+            t->increment_fails();
+            core->decrease_weight();
+            t->set_state(task_state::crashed);
+        }
+    } 
+    else if (WIFSIGNALED(status)) {
+        t->increment_fails();
+        core->decrease_weight();
+        t->set_state(task_state::crashed);
     }
 
-#ifdef NMR
-    // // TODO: Ugly fix to check if all replicates have finished
-    // int counter = 0;
-    // for (int i = 0; i < NUM_OF_TASKS; i++) {
-    //     if (m_tasks[i]->get_replicate() && m_tasks[i]->get_finished()) {
-    //         counter++;
-    //     }
-    // }
-
-    // if (counter == 3) {
-    //     m_tasks[m_voter]->set_fireable(true);
-    // }
-    // else {
-    //     m_tasks[m_voter]->set_fireable(false);
-    // }
-#endif
+    core->increase_runs();
+    core->set_active(false);
 }
 
 void scheduler::run_tasks()
 {
     // Fork and set CPU affinity for each task
     for (int i = 0; i < m_tasks.size(); i++) {
-        if (m_tasks[i]->get_fireable()) 
-        {
-            m_tasks[i]->set_startTime(current_time_in_ms()); 
-
-            //printf("Run: Task %s \n", m_tasks[i]->get_name().c_str());           
+        if (m_tasks[i]->get_fireable()) {
+            m_tasks[i]->set_startTime(current_time_in_ms());     
+            m_tasks[i]->increment_runs();        
 
             pid_t pid = fork();
 
             if (pid == -1) {
-                printf("error \n");
                 exit(EXIT_FAILURE);
-            } else if (pid == 0) {
+            } 
+            else if (pid == 0) {
                 // Set CPU affinity for the task
                 cpu_set_t cpuset;
                 CPU_ZERO(&cpuset);
@@ -174,7 +251,8 @@ void scheduler::run_tasks()
 
                 exit(EXIT_SUCCESS);
 
-            } else {
+            } 
+            else {
                 m_tasks[i]->set_pid(pid);
                 m_tasks[i]->set_state(task_state::running);
             }
@@ -182,18 +260,18 @@ void scheduler::run_tasks()
     }
 }
 
-void scheduler::add_task(const string& name, int period, void (*function)(void))
+void scheduler::add_task(const string& name, int period, int offset, int priority, void (*function)(void))
 {
-    task* t = new task(name, period, function);
+    task* t = new task(name, period, offset, priority, function);
 
     m_tasks.push_back(t);
 
     return;
 }
 
-void scheduler::add_voter(const string& name, int period, void (*function)(void))
+void scheduler::add_voter(const string& name, int period, int offset, int priority, void (*function)(void))
 {
-    voter* v = new voter(name, period, function);
+    voter* v = new voter(name, period, offset, priority, function);
 
     m_tasks.push_back(dynamic_cast<task*>(v));
 
@@ -224,44 +302,33 @@ task* scheduler::find_task(string name)
     return NULL;
 }
 
-// task* scheduler::find_task(string name)
-// {
-//     for (unsigned long int i = 0; i < m_tasks.size(); i++)
-//     {
-//         // if equal
-//         if (!m_tasks[i]->get_name().compare(name))
-//             return m_tasks[i];
-//     }
-
-//     return NULL;
-// }
-
-int scheduler::find_core()
+int scheduler::find_core(bool isVoter)
 {
     // Always skip the first core, this is used for the scheduler
     int core_id = -1;
 
-    for (int i = 1; i < NUM_OF_CORES; i++)
+    for (int i = 0; i < NUM_OF_CORES && i != SCHEDULER_CORE; i++)
     {
-#ifdef RELIABILITY_SCHEDULING
-        // If core is inactive and is more reliable
-        if (!m_cores[i]->get_active()) {
-            if (core_id == -1 || 
-                m_cores[i]->get_weight() > m_cores[core_id]->get_weight() || 
-                (m_cores[i]->get_weight() == m_cores[core_id]->get_weight() && m_cores[i]->get_runs() < m_cores[core_id]->get_runs())) {
-                core_id = i;
+        if (isVoter)
+        {
+            // If core is inactive and is more reliable
+            if (!m_cores[i]->get_active()) {
+                if (core_id == -1 || 
+                    m_cores[i]->get_weight() > m_cores[core_id]->get_weight() || 
+                    (m_cores[i]->get_weight() == m_cores[core_id]->get_weight() && m_cores[i]->get_runs() < m_cores[core_id]->get_runs())) {
+                    core_id = i;
+                }
             }
         }
-#else
-        if (!m_cores[i]->get_active() && (core_id == -1 || m_cores[i]->get_runs() < m_cores[core_id]->get_runs())) {
-            core_id = i;            
+        else
+        {
+            if (!m_cores[i]->get_active() && (core_id == -1 || m_cores[i]->get_runs() < m_cores[core_id]->get_runs()))
+                core_id = i;
         }
-#endif
     }
 
-    if (core_id == -1) {
-        return 0;  // No free core found
-    }
+    if (core_id == -1)
+        return -1;  // No free core found    
 
     // Change the core state
     m_cores[core_id]->set_active(true);    
@@ -271,6 +338,7 @@ int scheduler::find_core()
 
 bool scheduler::active()
 {
+#ifdef TIME_BASED
     time_t currentTime = time(NULL);
 
     // Convert current time and activation time to milliseconds
@@ -278,25 +346,44 @@ bool scheduler::active()
     long activationTimeMs = m_activationTime * 1000;
 
     if (currentTimeMs - activationTimeMs < MAX_RUN_TIME)
-    {
         return true;
-    }
     else
-    {
         return false;
+
+#else    
+
+#ifdef RUN_LOG
+    if (m_runs != m_tasks[0]->get_runs())
+    {
+        printf("run: %d \n", m_tasks[0]->get_runs());
     }
+    m_runs = m_tasks[0]->get_runs();
+    
+#endif
+    if (m_tasks[0]->get_success() + m_tasks[0]->get_fails() >= MAX_ITERATIONS)
+        return false;
+    else
+        return true;
+#endif
 }
 
 void scheduler::printResults()
 {
     for (int i = 0; i < NUM_OF_TASKS; i++)
     {
-        printf("Task: %s \t succesfull runs: %d \t failed runs: %d \n", m_tasks[i]->get_name().c_str(), m_tasks[i]->get_success(), m_tasks[i]->get_fails());
+        printf("Task: %s \t succesfull runs: %d \t failed runs: %d \t", m_tasks[i]->get_name().c_str(), m_tasks[i]->get_success(), m_tasks[i]->get_fails());
+        m_tasks[i]->print_core_runs();
     }
 
-    for (int i = 1; i < NUM_OF_CORES; i++)
+    for (int i = 0; i < NUM_OF_CORES && i != SCHEDULER_CORE; i++)
     {
-        printf("Core: %d \t runs: %d \t weight: %f \n", m_cores[i]->get_coreID(), m_cores[i]->get_runs(), m_cores[i]->get_weight());
+        printf("Core: %d \t runs: %d \t weight: %f \t state %d \n", m_cores[i]->get_coreID(), m_cores[i]->get_runs(), m_cores[i]->get_weight(), m_cores[i]->get_active());
+    }
+
+    for (int i = 0; i < NUM_OF_TASKS; i++)
+    {
+        printf("Task: %s \t state: %d \t fireable: %d \t input full: %d \t latest result %d \t latest status %d \n", 
+        m_tasks[i]->get_name().c_str(), m_tasks[i]->get_state(), m_tasks[i]->get_fireable(), task_input_full(m_tasks[i]), m_tasks[i]->get_latestResult(), m_tasks[i]->get_latestStatus());
     }
 }
 
@@ -305,12 +392,16 @@ result::result(vector<task*> tasks, vector<core*> cores, long mSeconds)
     for (long unsigned int i = 0; i < cores.size(); i++)
     {
         m_cores.push_back(cores[i]->get_runs());
-        //m_cores.push_back(tasks[i]->get_cpu_id());
     }
 
     for (long unsigned int i = 0; i < cores.size(); i++)
     {
         m_weights.push_back(cores[i]->get_weight());
+    }
+
+    for (long unsigned int i = 0; i < tasks.size(); i++)
+    {
+        m_tasks.push_back(tasks[i]->get_success());
     }
 
     m_time = mSeconds;
@@ -320,7 +411,7 @@ void scheduler::log_results() {
     long currentTimeMs = current_time_in_ms();
 
     if ((currentTimeMs - m_log_timeout > MAX_LOG_INTERVAL)) {
-        result *r = new result(m_tasks, m_cores, currentTimeMs);
+        result *r = new result(m_tasks, m_cores, (currentTimeMs - (m_activationTime * 1000)));
         m_results.push_back(r);
 
         m_log_timeout = currentTimeMs;
@@ -329,55 +420,87 @@ void scheduler::log_results() {
 
 void scheduler::write_results_to_csv() 
 {
-    string task_results = generateOutputString("tasks");
-    string weight_results = generateOutputString("weights");
+    string core_results = generateOutputString("results/cores/cores");
+    string weight_results = generateOutputString("results/weights/weights");
+    string task_results = generateOutputString("results/tasks/tasks");
 
-    FILE *task_file = fopen(task_results.c_str(), "w");
+    FILE *core_file = fopen(core_results.c_str(), "w");
     FILE *weight_file = fopen(weight_results.c_str(), "w");
+    FILE *task_file = fopen(task_results.c_str(), "w");
 
-    if (!task_file || !weight_file) 
+    if (!core_file || !weight_file || !task_file) 
     {
         perror("Failed to open file");
         return;
     }
 
-    //int task_result_buffer[m_cores.size()];
     for (long unsigned int i = 0; i < m_cores.size(); i++)
-    {     
-        //task_result_buffer[i] = 0;
+    {
+        if (!i) {
+            fprintf(core_file, "time\t");
+            fprintf(weight_file, "time\t");
+        }
 
-        fprintf(task_file, "core_%ld", i);
+        fprintf(core_file, "core_%ld", i);
         fprintf(weight_file, "core_%ld", i);
 
         if (i < m_cores.size() - 1) {
-            fprintf(task_file, "\t");
+            fprintf(core_file, "\t");
             fprintf(weight_file, "\t");
         }
     }
 
-    fprintf(task_file, "\n");
+    for (long unsigned int i = 0; i < m_tasks.size(); i++)
+    {
+        if (!i) {
+            fprintf(task_file, "time\t");
+        }
+        
+        fprintf(task_file, "%s", m_tasks[i]->get_name().c_str());
+        if (i < m_tasks.size() - 1) {
+            fprintf(task_file, "\t");
+        }
+    }
+
+    fprintf(core_file, "\n");
     fprintf(weight_file, "\n");
+    fprintf(task_file, "\n");
 
     for (auto& result : m_results)
     {
+        fprintf(core_file, "%ld\t", result->m_time);
+        fprintf(weight_file, "%ld\t", result->m_time);
+        fprintf(task_file, "%ld\t", result->m_time);
+
         for (long unsigned int j = 0; j < m_cores.size(); j++)
         {
-            fprintf(task_file, "%d", (result->m_cores[j]));
+            fprintf(core_file, "%d", (result->m_cores[j]));
             fprintf(weight_file, "%f", (result->m_weights[j]));
-
-            //task_result_buffer[j] = m_cores[j]->get_runs();
-
+            
             if (j < m_cores.size() - 1) 
             {
-                fprintf(task_file, "\t");
+                fprintf(core_file, "\t");
                 fprintf(weight_file, "\t");
             }
         }
-        fprintf(task_file, "\n");
+
+        for (long unsigned int j = 0; j < m_tasks.size(); j++)
+        {
+            fprintf(task_file, "%d", result->m_tasks[j]);
+
+            if (j < m_tasks.size() - 1)
+            {
+                fprintf(task_file, "\t");
+            }
+        }
+
+        fprintf(core_file, "\n");
         fprintf(weight_file, "\n");
+        fprintf(task_file, "\n");
     }
 
-
+    fclose(core_file);
+    fclose(weight_file);
     fclose(task_file);
 }
 

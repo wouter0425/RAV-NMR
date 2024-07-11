@@ -9,6 +9,7 @@
 #include <string>
 #include <signal.h>
 #include <sys/select.h>
+#include <signal.h>
 
 #include "scheduler.h"
 #include "task.h"
@@ -33,8 +34,13 @@ Pipe *BC_3;
 Pipe *CD_1;
 #endif
 
+void handle_signal(int sig);
+
 int main()
 {
+    // exit handler function
+    signal(SIGINT, handle_signal);
+
 #ifdef NMR
     // NMR operation
     AB_1 = declare_pipe("pipe_AB_1");
@@ -47,12 +53,12 @@ int main()
 
     CD_1 = declare_pipe("pipe_CD");
 
-    s.add_task("task_A_1", 1000, task_A_1); // 0
-    s.add_task("task_B_1", 0, task_B_1);    // 1
-    s.add_task("task_B_2", 0, task_B_2);    // 2
-    s.add_task("task_B_3", 0, task_B_3);    // 3
-    s.add_voter("voter", 0, voter_func);    // 4
-    s.add_task("task_C_1", 0, task_C_1);    // 5
+    s.add_task("task_A_1", 200, 0, 0, task_A_1);
+    s.add_task("task_B_1", 0, 0, 0, task_B_1);
+    s.add_task("task_B_2", 0, 0, 0, task_B_2);
+    s.add_task("task_B_3", 0, 0, 0, task_B_3);
+    s.add_voter("voter", 0, 0, 0, voter_func);
+    s.add_task("task_C_1", 0, 0, 0, task_C_1);
 
     add_input(&s.find_task("task_B_1")->get_inputs_ref(), AB_1->get_read_fd());
     add_input(&s.find_task("task_B_2")->get_inputs_ref(), AB_2->get_read_fd());
@@ -61,9 +67,9 @@ int main()
 
     voter* v = static_cast<voter*>(s.find_task("voter"));
 
-    v->add_replicate(s.find_task("task_A_1"));
-    v->add_replicate(s.find_task("task_A_2"));
-    v->add_replicate(s.find_task("task_A_3"));
+    v->add_replicate(s.find_task("task_B_1"));
+    v->add_replicate(s.find_task("task_B_2"));
+    v->add_replicate(s.find_task("task_B_3"));
 
 #else
     // Normal operation
@@ -71,16 +77,13 @@ int main()
     BC = declare_pipe("pipe_BC");
 
     // Create the tasks
-    s.add_task("task_A", 1000, task_A);
-    s.add_task("task_B", 0, task_B);
-    s.add_task("task_C", 0, task_C);
+    s.add_task("task_A", 200, 0, 1, task_A);
+    s.add_task("task_B", 0, 0, 2, task_B);
+    s.add_task("task_C", 0, 0, 3, task_C);
 
     // Set input for tasks
     add_input(&s.find_task("task_B")->get_inputs_ref(), AB->get_read_fd());
-    //printf("task B: %d \n", AB->get_read_fd());
-
     add_input(&s.find_task("task_C")->get_inputs_ref(), BC->get_read_fd());
-    //printf("task C: %d \n", BC->get_read_fd());
 #endif
 
     s.init_scheduler();
@@ -93,6 +96,7 @@ int main()
 #ifdef LOGGING
         s.log_results();
 #endif        
+        usleep(10);
     }
 
 #ifdef LOGGING
@@ -105,4 +109,15 @@ int main()
 
     exit(0);
     return 0;
+}
+
+void handle_signal(int sig) {
+    s.printResults();
+    s.write_results_to_csv();
+    s.cleanup_tasks();
+
+    if (sig == SIGINT) {
+        printf("Scheduler received SIGINT, shutting down...\n");
+        exit(EXIT_SUCCESS);
+    }
 }
