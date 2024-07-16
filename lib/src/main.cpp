@@ -11,10 +11,11 @@
 #include <sys/select.h>
 #include <signal.h>
 
-#include "scheduler.h"
-#include "task.h"
-#include "pipe.h"
-#include "defines.h"
+#include <scheduler.h>
+#include <task.h>
+#include <pipe.h>
+#include <defines.h>
+#include <user_functions.h>
 
 // Create the scheduler
 scheduler s;
@@ -54,11 +55,11 @@ int main()
     CD_1 = declare_pipe("pipe_CD");
 
     s.add_task("task_A_1", 200, 0, 0, task_A_1);
-    s.add_task("task_B_1", 0, 0, 0, task_B_1);
-    s.add_task("task_B_2", 0, 0, 0, task_B_2);
-    s.add_task("task_B_3", 0, 0, 0, task_B_3);
-    s.add_voter("voter", 0, 0, 0, voter_func);
-    s.add_task("task_C_1", 0, 0, 0, task_C_1);
+    s.add_task("task_B_1", 0, 0, 2, task_B_1);
+    s.add_task("task_B_2", 0, 0, 2, task_B_2);
+    s.add_task("task_B_3", 0, 0, 2, task_B_3);
+    s.add_voter("voter", 0, 0, 3,voter_func);
+    s.add_task("task_C_1", 0, 0, 1, task_C_1);
 
     add_input(&s.find_task("task_B_1")->get_inputs_ref(), AB_1->get_read_fd());
     add_input(&s.find_task("task_B_2")->get_inputs_ref(), AB_2->get_read_fd());
@@ -77,9 +78,9 @@ int main()
     BC = declare_pipe("pipe_BC");
 
     // Create the tasks
-    s.add_task("task_A", 200, 0, 1, task_A);
-    s.add_task("task_B", 0, 0, 2, task_B);
-    s.add_task("task_C", 0, 0, 3, task_C);
+    s.add_task("task_A", 200, 0, 0, task_A);
+    s.add_task("task_B", 0, 0, 0, task_B);
+    s.add_task("task_C", 0, 0, 0, task_C);
 
     // Set input for tasks
     add_input(&s.find_task("task_B")->get_inputs_ref(), AB->get_read_fd());

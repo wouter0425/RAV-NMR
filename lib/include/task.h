@@ -6,9 +6,7 @@
 #include <stdarg.h>
 #include <string>
 #include <vector>
-//#include "pipe.h"
-
-// Define the struct for pipe endpoints
+#include <defines.h>
 
 using namespace std;
 
@@ -39,31 +37,29 @@ class task {
     private:
         string m_name;
         int m_cpu_id;
-        bool m_active;
+        bool m_active { false };
         bool m_fireable;
         int m_priority;
         pid_t m_pid;
         void (*m_function)(void);
-        input *m_inputs;
-        int m_success;
-        int m_fails;
-        bool m_voter;
-        bool m_replicate;
+        input *m_inputs { NULL };
+        int m_success { 0 };
+        int m_fails { 0 };
+        int m_errors { 0 };
+        bool m_voter { false };
         int m_runs { 0 };
-        bool m_finished;
-        int m_period;
-        int m_offset;
-        unsigned long int m_startTime;
+        bool m_finished { false } ;
+        unsigned long int m_period;
+        unsigned long int m_offset;
+        unsigned long int m_startTime { 0 };
         task_state m_state;
         int m_coreRuns[NUM_OF_CORES];
-        //vector<run_log> m_results;
-
         pid_t m_latestResult;
         int m_latestStatus;
 
     public:
 
-        task(const string& name, int period, int offset, int priority, void (*function)(void));
+        task(const string& name, unsigned long int period, unsigned long int offset, int priority, void (*function)(void));
         task();
 
         bool period_elapsed(unsigned long int currentTime);
@@ -84,13 +80,13 @@ class task {
         bool get_fireable() { return m_fireable; }
         void set_fireable(bool fireable) { m_fireable = fireable; }
 
-        int get_priority() { return m_priority; }
+        int get_priority() const { return m_priority; }
         void set_priority(int priority) { m_priority = priority; }
 
         pid_t get_pid() { return m_pid; }
         void set_pid(pid_t p) { m_pid = p; }
 
-        void run() { m_function(); }
+        void run() { if(m_function != NULL ) m_function(); }
 
         void set_startTime(unsigned long int startTime) { m_startTime = startTime; }
 
@@ -105,14 +101,13 @@ class task {
         void increment_success() { m_success++; }
 
         int get_fails() { return m_fails; }
-        void set_fails(int fails) { m_fails = fails; }
         void increment_fails() { m_fails++; }
+
+        int get_errors() { return m_errors; }
+        void increment_errors() { m_errors++; }
 
         bool get_voter() { return m_voter; }
         void set_voter(bool voter) { m_voter = voter; }
-
-        bool get_replicate() { return m_replicate; }
-        void set_replicate(bool replicate) { m_replicate = replicate; }
 
         bool get_finished() { return m_finished; }
         void set_finished(bool finished) { m_finished = finished; }
@@ -134,35 +129,5 @@ class task {
             printf("\n");
         }
 };
-
-class voter : public task {
-    private:
-        vector<task*> m_replicates;
-        vector<replicate> m_replicateMonitor;
-        bool m_armed {false};
-
-    public:
-        voter(const string& name, int period, int offset, int priority, void (*function)(void));
-        bool check_replicate_state(task_state state);
-        void add_replicate(task *t);
-        bool get_voter_fireable();
-        void set_armed(bool armed) { m_armed = armed; }
-        bool get_armed() { return m_armed; } 
-
-};
-
-void hello_world(void);
-
-void task_A(void);
-void task_B(void);
-void task_C(void);
-
-void task_A_1(void);
-void task_B_1(void);
-void task_B_2(void);
-void task_B_3(void);
-void task_C_1(void);
-
-void voter_func(void);
 
 #endif

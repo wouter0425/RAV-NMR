@@ -1,39 +1,32 @@
 #ifndef DEFINES_H
 #define DEFINES_H
 
-/* Runtime in seconds */
-#define MAX_RUN_TIME 40000
-#define MAX_ITERATIONS 500
-#define MAX_STUCK_TIME 50
+/* Task related defines */
+#define TASK_BUSY_TIME  500                 // The time a task is "busy". Used to simulate the time a task runs
+#define MAX_READ_TIME   1000                // Max time (in milliseconds) a task waits for a pipe to become available
+#define START_VALUE    42                   // The value the first task starts with (for detecting errors)
+#define END_VALUE    43                     // The value the last task finished with (for detecting errors)
+//#define TIME_BASED                        // Run the scheduler for x milliseconds
+#define MAX_RUN_TIME 40000                  // The amount of time the scheduler runs of TIME_BASED is defined
+#define ITERATION_BASED                     // Runs the scheduler for x iterations, based on the first added task
+#define MAX_ITERATIONS 2000                 // The number of times a scheduler runs if ITERATION_BASED is defined
+#define MAX_STUCK_TIME 50                   // Max time (in milliseconds) a task may stay in the same state 
 
-#define TASK_BUSY_TIME  500
-#define MAX_LOG_INTERVAL    100
-#define NUM_OF_SAMPLES  10000
+/* Scheduler related defines */
+#define NUM_OF_CORES 4                      // Num of cores used by the scheduler
+#define SCHEDULER_CORE  4                   // The core ID on which the scheduler runs, no other tasks will run on this core
+#define MAX_CORE_WEIGHT 100.0               // Max (and start) reliability weight of a core
+#define BUF_SIZE 4                          // Size of the buffer used in the pipes, 4 bytes for integer values
+#define INCREASE    1.1                     // Increase the core reliability by 10% when a task exits normally
+#define DECREASE    0.9                     // Decrease the core reliability by 10% when a task exits abnormally (i.e. crash)
 
-#define NUM_OF_CORES 4
-#define SCHEDULER_CORE  4
-#define MAX_CORE_WEIGHT 100.0
-#define BUF_SIZE 4
-#define INCREASE    1.1
-#define DECREASE    0.9
+/* Log related defines*/
+//#define DEBUG                             // Has each task print its name when it runs
+#define LOGGING                             // Log the parameters (core weight & core/task utility)
+//#define RUN_LOG                           // Print the runs of the first added task, used to debug
+#define MAX_LOG_INTERVAL    100             // Number of miliseconds between each log
 
-//#define TIME_BASED
-#define ITERATION_BASED
-
-//#define DEBUG
-//#define DEBUG_SCHEDULER
-#define LOGGING
-//#define RUN_LOG
-
-//#define RELIABILITY_SCHEDULING
-#define NMR
-
-#ifdef NMR
-#define NUM_OF_TASKS 6
-#else
-#define NUM_OF_TASKS 3
-#endif
-
-
+/* Redundancy related defines */
+//#define NMR                               // Uncomment when a voter task is used
 
 #endif

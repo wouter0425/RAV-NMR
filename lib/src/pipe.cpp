@@ -3,16 +3,15 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-
 #include <string>
 
-#include "pipe.h"
-#include "task.h"
+#include <pipe.h>
+#include <task.h>
+#include <voter.h>
 
 using namespace std;
 
-Pipe::Pipe(int read_fd, int write_fd, const char* name, Pipe *next)
-{
+Pipe::Pipe(int read_fd, int write_fd, const char* name, Pipe *next) {
     m_read_fd = read_fd;
     m_write_fd = write_fd;
     m_name = strdup(name);
@@ -43,49 +42,33 @@ void add_input(input **inputs, int fd) {
     new_input->next = NULL;
 
     if (*inputs == NULL) {
-        // Update the head pointer if the list is empty
         *inputs = new_input;
-    } 
-    else {
+    } else {
         input *current = *inputs;
         while (current->next != NULL) {
             current = current->next;
         }
-        // Append the new input to the end of the list
         current->next = new_input;
     }
 }
 
-bool task_input_full(task *t) 
-{
+bool task_input_full(task *t) {
     if (t->get_voter()) {
-        voter* v = static_cast<voter*>(t);
+        voter* v = static_cast<voter*>(t);        
         if (!v) {
             return false;
-        }
-
-        // if(v->check_replicate_state(task_state::running)) {
-        //     v->set_armed(true);
-        // }
-        // else if ((!v->check_replicate_state(task_state::running)) && v->get_armed()) {
-        //     v->set_armed(false);
-        //     return true;
-        // }
+        }        
         return v->get_voter_fireable();
-    }    
-    else {
+    } else {
         fd_set read_fds;
         struct timeval timeout;
         int max_fd = 0;
         input *current = t->get_inputs();
 
-        // Initialize the set of file descriptors to be checked.
         FD_ZERO(&read_fds);
-
-        // Add each file descriptor to the set and find the maximum file descriptor value.
+        
         while (current != NULL) {
-            if (current->fd < 0) {
-                // Invalid file descriptor, handle the error as appropriate
+            if (current->fd < 0) {                
                 fprintf(stderr, "Invalid file descriptor: %d\n", current->fd);                
                 return false;
             }
@@ -95,20 +78,17 @@ bool task_input_full(task *t)
             }
             current = current->next;
         }
-
-        // Set the timeout value (e.g., 0 seconds and 0 microseconds means no waiting).
+        
         timeout.tv_sec = 0;
         timeout.tv_usec = 0;
-
-        // Use select to check if data is available on any of the file descriptors.
+        
         int result = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
 
         if (result < 0) {
             perror("select");
             return false;
         }
-
-        // Check if all file descriptors are ready.
+        
         current = t->get_inputs();
 
         while (current != NULL) {
@@ -123,7 +103,7 @@ bool task_input_full(task *t)
 }
 
 void open_pipe_read_end(Pipe *pipe) {
-    close(pipe->get_write_fd());  // Close the write end if it's open
+    close(pipe->get_write_fd());
 }
 
 void open_pipe_write_end(Pipe *pipe) {
@@ -139,14 +119,17 @@ void close_pipe_write_end(Pipe *pipe) {
 }
 
 bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size) {
-    // Ensure the write end is closed
     open_pipe_read_end(pipe);
 
     fd_set read_fds;
     FD_ZERO(&read_fds);
     FD_SET(pipe->get_read_fd(), &read_fds);
-    
-    int ready = select(pipe->get_read_fd() + 1, &read_fds, NULL, NULL, NULL);
+
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+
+    int ready = select(pipe->get_read_fd() + 1, &read_fds, NULL, NULL, &timeout);
     if (ready > 0) {
         ssize_t num_bytes = read(pipe->get_read_fd(), buffer, buf_size - 1);
         if (num_bytes > 0) {
@@ -155,19 +138,16 @@ bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size) {
             return true;
         }
     }
-
-    // Close the read end if no data is read
+    
     close_pipe_read_end(pipe);
     return false;
 }
 
+
 void write_to_pipe(Pipe *pipe, const char *buffer) {
-    // Ensure the read end is closed
     open_pipe_write_end(pipe);
 
-    // Include the null terminator
     write(pipe->get_write_fd(), buffer, strlen(buffer) + 1);
 
-    // Close the write end after use
     close_pipe_write_end(pipe);
 }

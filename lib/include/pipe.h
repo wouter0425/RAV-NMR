@@ -1,3 +1,21 @@
+/**
+ * @file pipe.h
+ * @brief This file contains functions for managing pipes and tasks in a Unix environment.
+ * 
+ * The file includes functions for creating pipes, adding inputs to a list,
+ * checking if a task's inputs are full, and reading from or writing to pipes.
+ * It also includes the definition of the Pipe class and associated methods.
+ * 
+ * Functions:
+ * - Pipe::Pipe(int read_fd, int write_fd, const char* name, Pipe *next)
+ * - Pipe *declare_pipe(const char *pipe_name)
+ * - void add_input(input **inputs, int fd)
+ * - bool task_input_full(task *t)
+ * - bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size)
+ * - void write_to_pipe(Pipe *pipe, const char *buffer)
+ */
+
+
 #ifndef PIPE_H
 #define PIPE_H
 
@@ -14,36 +32,60 @@ class Pipe {
     private:
         int m_read_fd;               // File descriptor for the read end
         int m_write_fd;              // File descriptor for the write end
-        char *m_name;              // Name of the pipe
+        char *m_name;                // Name of the pipe
         struct Pipe *m_next;         // Pointer to the next pipe in the list
 
     public:
         Pipe(int read_fd, int write_fd, const char* name, Pipe *next);
 
         int get_read_fd() { return m_read_fd; }
-        void set_read_fd(int fd) { m_read_fd = fd; }
 
         int get_write_fd() { return m_write_fd; }
-        void set_write_fd(int fd) { m_write_fd = fd; }
 
-        char* get_name() { return m_name; }        
-
-        struct Pipe* get_next() { return m_next; }
-        void set_next(struct Pipe* p) { m_next = p; }
-
-
+        char* get_name() { return m_name; }
 };
 
+/**
+ * @brief Creates a new pipe and returns a Pipe object.
+ * 
+ * @param pipe_name Name of the pipe.
+ * @return Pointer to the created Pipe object.
+ */
+Pipe *declare_pipe(const char *pipe_name);
+
+/**
+ * @brief Adds a file descriptor to the list of inputs.
+ * 
+ * @param inputs Pointer to the head of the input list.
+ * @param fd File descriptor to add.
+ */
 void add_input(input **inputs, int fd);
+
+/**
+ * @brief Checks if the task's input is full.
+ * 
+ * @param t Pointer to the task object.
+ * @return true if all inputs are ready to be read; false otherwise.
+ */
 bool task_input_full(task *t);
-void open_pipe_read_end(Pipe *pipe);
-void open_pipe_write_end(Pipe *pipe);
-void close_pipe_read_end(Pipe *pipe);
-void close_pipe_write_end(Pipe *pipe);
 
+/**
+ * @brief Reads data from a pipe into a buffer.
+ * 
+ * @param pipe Pointer to the Pipe object.
+ * @param buffer Buffer to store the read data.
+ * @param buf_size Size of the buffer.
+ * @return true if data was successfully read; false otherwise.
+ */
 bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size);
-void write_to_pipe(Pipe *pipe, const char *buffer);
 
+/**
+ * @brief Writes data to a pipe.
+ * 
+ * @param pipe Pointer to the Pipe object.
+ * @param buffer Buffer containing the data to write.
+ */
+void write_to_pipe(Pipe *pipe, const char *buffer);
 
 
 // Declare the pipes
@@ -60,6 +102,5 @@ extern Pipe *BC_3;
 extern Pipe *CD_1;
 #endif
 
-Pipe *declare_pipe(const char *pipe_name);
 
 #endif
