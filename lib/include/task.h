@@ -59,11 +59,50 @@ class task {
 
     public:
 
+        /**
+         * @brief Parameterized constructor for the task class.
+         * 
+         * @param name Name of the task.
+         * @param period The period at which the task should be executed.
+         * @param offset The offset time before the task starts executing.
+         * @param priority The priority of the task.
+         * @param function Pointer to the function that the task will execute.
+         */
         task(const string& name, unsigned long int period, unsigned long int offset, int priority, void (*function)(void));
-        task();
 
-        bool period_elapsed(unsigned long int currentTime);
+        /**
+         * @brief Checks if the offset time has elapsed since the task started.
+         * 
+         * @param startTime The start time of the task.
+         * @param currentTime The current time.
+         * @return true if the offset has elapsed, false otherwise.
+         */
         bool offset_elapsed(unsigned long int startTime, unsigned long int currentTime);
+
+
+        /**
+         * @brief Checks if the period time has elapsed since the task started.
+         * 
+         * @param currentTime The current time.
+         * @return true if the period has elapsed, false otherwise.
+         */
+        bool period_elapsed(unsigned long int currentTime);
+        
+        /**
+         * @brief Checks if the task is stuck based on elapsed time, status, and result.
+         * 
+         * @param elapsedTime The elapsed time since the task started.
+         * @param status The current status of the task.
+         * @param result The result of the task's execution.
+         * @return true if the task is stuck, false otherwise.
+         */
+        bool is_stuck(unsigned long int elapsedTime, int status, pid_t result); 
+        
+        
+        /**
+         * @brief Prints the number of times the task has run on each core.
+         */
+        void print_core_runs();
 
         void increment_runs() { m_runs++; }
         int get_runs() { return m_runs; }
@@ -89,8 +128,6 @@ class task {
         void run() { if(m_function != NULL ) m_function(); }
 
         void set_startTime(unsigned long int startTime) { m_startTime = startTime; }
-
-        bool is_stuck(unsigned long int elapsedTime, int status, pid_t result); 
 
         input* get_inputs() { return m_inputs; }
         input*& get_inputs_ref() { return m_inputs; }
@@ -120,14 +157,6 @@ class task {
         pid_t get_latestResult() { return m_latestResult; }
 
         void add_core_run(int core) { m_coreRuns[core]++; };
-        void print_core_runs() 
-        {            
-            for (int i = 0; i < NUM_OF_CORES; i++)
-            {
-                printf("Core %d: %d \t", i, m_coreRuns[i]);
-            }        
-            printf("\n");
-        }
 };
 
 #endif

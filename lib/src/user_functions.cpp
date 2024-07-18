@@ -201,9 +201,9 @@ void task_C_1(void) {
 
 void voter_func(void) {
     const int num_buffers = 3;
-    char buffers[num_buffers][BUF_SIZE] = {0}; // Initialize buffers
-    bool reads[num_buffers] = {false}; // Initialize read flags
-    char outputBuffer[BUF_SIZE] = {0}; // Initialize output buffer
+    char buffers[num_buffers][BUF_SIZE] = {0};
+    bool reads[num_buffers] = {false};
+    char outputBuffer[BUF_SIZE] = {0};
 
     // Read from pipes
     reads[0] = read_from_pipe(BC_1, buffers[0], BUF_SIZE);
@@ -211,21 +211,21 @@ void voter_func(void) {
     reads[2] = read_from_pipe(BC_3, buffers[2], BUF_SIZE);
 
     // Compare and vote on the data
-    if (reads[0] && reads[1] && strcmp(buffers[0], buffers[1]) == 0) {
+    if (reads[0] && reads[1] && strcmp(buffers[0], buffers[1]) == 0)
         strncpy(outputBuffer, buffers[0], BUF_SIZE);
-    } else if (reads[0] && reads[2] && strcmp(buffers[0], buffers[2]) == 0) {
+    else if (reads[0] && reads[2] && strcmp(buffers[0], buffers[2]) == 0)
         strncpy(outputBuffer, buffers[0], BUF_SIZE);
-    } else if (reads[1] && reads[2] && strcmp(buffers[1], buffers[2]) == 0) {
+    else if (reads[1] && reads[2] && strcmp(buffers[1], buffers[2]) == 0)
         strncpy(outputBuffer, buffers[1], BUF_SIZE);
-    } else {
+    else {
         // Handle case where no two buffers match
-        if (reads[0]) {
+        if (reads[0])
             strncpy(outputBuffer, buffers[0], BUF_SIZE);
-        } else if (reads[1]) {
+        else if (reads[1])
             strncpy(outputBuffer, buffers[1], BUF_SIZE);
-        } else if (reads[2]) {
+        else if (reads[2])
             strncpy(outputBuffer, buffers[2], BUF_SIZE);
-        } else {
+        else {
             // If no valid data is read, the voter should not have been spawned
             exit(1);
         }
@@ -240,40 +240,5 @@ void voter_func(void) {
 
     exit(0);
 }
-
-// void voter_func(void) {
-//     char buffer1[BUF_SIZE], buffer2[BUF_SIZE], buffer3[BUF_SIZE];
-//     char outputBuffer[BUF_SIZE];
-//     bool read1, read2, read3;
-
-//     read1 = read_from_pipe(BC_1, buffer1, BUF_SIZE);
-//     read2 = read_from_pipe(BC_2, buffer2, BUF_SIZE);
-//     read3 = read_from_pipe(BC_3, buffer3, BUF_SIZE);
-
-//     if (read1 && read2 && strcmp(buffer1, buffer2) == 0) {
-//         strncpy(outputBuffer, buffer1, BUF_SIZE);
-//     } else if (read1 && read3 && strcmp(buffer1, buffer3) == 0) {
-//         strncpy(outputBuffer, buffer1, BUF_SIZE);
-//     } else if (read2 && read3 && strcmp(buffer2, buffer3) == 0) {
-//         strncpy(outputBuffer, buffer2, BUF_SIZE);
-//     } else if (read1) {
-//         strncpy(outputBuffer, buffer1, BUF_SIZE);
-//     } else if (read2) {
-//         strncpy(outputBuffer, buffer2, BUF_SIZE);
-//     } else if (read3) {
-//         strncpy(outputBuffer, buffer3, BUF_SIZE);
-//     } else {
-//         // If no valid data is read, handle the error or set a default value
-//         //strncpy(outputBuffer, "Nop", BUF_SIZE);
-//     }
-
-// #ifdef DEBUG
-//     printf("Voter \n");
-// #endif
-
-//     write_to_pipe(CD_1, outputBuffer);
-
-//     exit(0);
-// }
 
 #endif

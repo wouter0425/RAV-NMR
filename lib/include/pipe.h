@@ -45,6 +45,20 @@ class Pipe {
         char* get_name() { return m_name; }
 };
 
+// Declare the pipes here
+#ifndef NMR
+extern Pipe *AB;
+extern Pipe *BC;
+#else
+extern Pipe *AB_1;
+extern Pipe *AB_2;
+extern Pipe *AB_3;
+extern Pipe *BC_1;
+extern Pipe *BC_2;
+extern Pipe *BC_3;
+extern Pipe *CD_1;
+#endif
+
 /**
  * @brief Creates a new pipe and returns a Pipe object.
  * 
@@ -88,19 +102,6 @@ bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size);
 void write_to_pipe(Pipe *pipe, const char *buffer);
 
 
-// Declare the pipes
-#ifndef NMR
-extern Pipe *AB;
-extern Pipe *BC;
-#else
-extern Pipe *AB_1;
-extern Pipe *AB_2;
-extern Pipe *AB_3;
-extern Pipe *BC_1;
-extern Pipe *BC_2;
-extern Pipe *BC_3;
-extern Pipe *CD_1;
-#endif
 
 
 #endif

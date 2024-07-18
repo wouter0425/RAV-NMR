@@ -162,7 +162,7 @@ class scheduler {
          *
          * If no free core is found, it returns -1. Otherwise, it marks the found core as active and returns its ID.
          */
-        int find_core(bool isVoter = false);
+        int find_core(bool isVoter);
         
         /**
          * @brief Checks if the scheduler is active based on the run time or task iterations.

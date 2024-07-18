@@ -63,9 +63,8 @@ void scheduler::monitor_tasks()
             {                
                 if (task->is_stuck(current_time, status, result)) 
                 {
-                    task->increment_fails();
-                    m_cores[task->get_cpu_id()]->decrease_weight();
                     task->set_state(task_state::crashed);
+                    handle_task_completion(task, 1, result);
                 }
             } 
             else 
@@ -80,16 +79,12 @@ void scheduler::monitor_tasks()
             task->set_fireable(true);
             int core_id;
 
-            // The voter gets the most reliable core
-            voter* v = static_cast<voter*>(task);
-            !v ? core_id = find_core() : core_id = find_core(true);
+            task->get_voter() ? core_id = find_core(true) : core_id = find_core(false);            
 
             (core_id != -1) ? task->set_cpu_id(core_id) : task->set_fireable(false);
         }
         else
-        {
             task->set_fireable(false);
-        }
     }
 }
 
@@ -142,10 +137,8 @@ void scheduler::run_tasks()
 
             pid_t pid = fork();
 
-            if (pid == -1) 
-            {
+            if (pid == -1)
                 exit(EXIT_FAILURE);
-            } 
             else if (pid == 0) 
             {
                 cpu_set_t cpuset;
@@ -222,26 +215,39 @@ int scheduler::find_core(bool isVoter)
     // Always skip the first core, this is used for the scheduler
     int core_id = -1;
 
-    for (int i = 0; i < NUM_OF_CORES && i != SCHEDULER_CORE; i++)
+    for (int i = 0; i < NUM_OF_CORES; i++)
     {
+        if (i == SCHEDULER_CORE)
+            continue;
+
         if (isVoter)
-        {
-        // If core is inactive and is more reliable
+        {            
+            // If core is inactive and is more reliable
             if (!m_cores[i]->get_active()) 
             {
-                if (core_id == -1 || m_cores[i]->get_weight() > m_cores[core_id]->get_weight() || (m_cores[i]->get_weight() == m_cores[core_id]->get_weight() && m_cores[i]->get_runs() < m_cores[core_id]->get_runs()))
+                if (core_id == -1 || 
+                    m_cores[i]->get_weight() > m_cores[core_id]->get_weight() || 
+                    (m_cores[i]->get_weight() == m_cores[core_id]->get_weight() && m_cores[i]->get_runs() < m_cores[core_id]->get_runs()))
+                {
                     core_id = i;
+                }
             }
         }
         else
         {
-            if (!m_cores[i]->get_active() && (core_id == -1 || m_cores[i]->get_runs() < m_cores[core_id]->get_runs()))
+            if (!m_cores[i]->get_active() && 
+                (core_id == -1 || m_cores[i]->get_runs() < m_cores[core_id]->get_runs()))
+            {
                 core_id = i;
+            }
         }
     }
 
     if (core_id == -1)
+    {
+        printf("no core available \n");
         return -1;
+    }
     
     m_cores[core_id]->set_active(true);    
 
@@ -287,21 +293,18 @@ void scheduler::printResults()
     }
 
     for (int i = 0; i < NUM_OF_CORES && i != SCHEDULER_CORE; i++)
-    {
         printf("Core: %d \t runs: %d \t weight: %f \t state %d \n", m_cores[i]->get_coreID(), m_cores[i]->get_runs(), m_cores[i]->get_weight(), m_cores[i]->get_active());
-    }
 
     for (size_t i = 0; i < m_tasks.size(); i++)
-    {
         printf("Task: %s \t state: %d \t fireable: %d \t input full: %d \t latest result %d \t latest status %d \n", 
         m_tasks[i]->get_name().c_str(), m_tasks[i]->get_state(), m_tasks[i]->get_fireable(), task_input_full(m_tasks[i]), m_tasks[i]->get_latestResult(), m_tasks[i]->get_latestStatus());
-    }
 }
 
 void scheduler::log_results() {
     long currentTimeMs = current_time_in_ms();
 
-    if ((currentTimeMs - m_log_timeout > MAX_LOG_INTERVAL)) {
+    if ((currentTimeMs - m_log_timeout > MAX_LOG_INTERVAL))
+    {
         result *r = new result(m_tasks, m_cores, (currentTimeMs - (m_activationTime * 1000)));
         m_results.push_back(r);
 
@@ -325,9 +328,10 @@ void scheduler::write_results_to_csv()
         return;
     }
 
-    for (long unsigned int i = 0; i < m_cores.size(); i++)
+    for (size_t i = 0; i < m_cores.size(); i++)
     {
-        if (!i) {
+        if (!i) 
+        {
             fprintf(core_file, "time\t");
             fprintf(weight_file, "time\t");
         }
@@ -335,22 +339,21 @@ void scheduler::write_results_to_csv()
         fprintf(core_file, "core_%ld", i);
         fprintf(weight_file, "core_%ld", i);
 
-        if (i < m_cores.size() - 1) {
+        if (i < m_cores.size() - 1) 
+        {
             fprintf(core_file, "\t");
             fprintf(weight_file, "\t");
         }
     }
 
-    for (long unsigned int i = 0; i < m_tasks.size(); i++)
+    for (size_t i = 0; i < m_tasks.size(); i++)
     {
-        if (!i) {
+        if (!i)
             fprintf(task_file, "time\t");
-        }
         
         fprintf(task_file, "%s", m_tasks[i]->get_name().c_str());
-        if (i < m_tasks.size() - 1) {
+        if (i < m_tasks.size() - 1)        
             fprintf(task_file, "\t");
-        }
     }
 
     fprintf(core_file, "\n");
@@ -363,7 +366,7 @@ void scheduler::write_results_to_csv()
         fprintf(weight_file, "%ld\t", result->m_time);
         fprintf(task_file, "%ld\t", result->m_time);
 
-        for (long unsigned int j = 0; j < m_cores.size(); j++)
+        for (size_t j = 0; j < m_cores.size(); j++)
         {
             fprintf(core_file, "%d", (result->m_cores[j]));
             fprintf(weight_file, "%f", (result->m_weights[j]));
@@ -375,14 +378,12 @@ void scheduler::write_results_to_csv()
             }
         }
 
-        for (long unsigned int j = 0; j < m_tasks.size(); j++)
+        for (size_t j = 0; j < m_tasks.size(); j++)
         {
             fprintf(task_file, "%d", result->m_tasks[j]);
 
             if (j < m_tasks.size() - 1)
-            {
                 fprintf(task_file, "\t");
-            }
         }
 
         fprintf(core_file, "\n");
@@ -395,13 +396,15 @@ void scheduler::write_results_to_csv()
     fclose(task_file);
 }
 
-long scheduler::current_time_in_ms() {
+long scheduler::current_time_in_ms() 
+{
     struct timespec spec;
     clock_gettime(CLOCK_REALTIME, &spec);
     return (spec.tv_sec * 1000) + (spec.tv_nsec / 1000000);
 }
 
-string scheduler::generateOutputString(const string& prefix) {
+string scheduler::generateOutputString(const string& prefix) 
+{
     // Get the current time
     std::time_t now = std::time(nullptr);
     std::tm timeinfo = *std::localtime(&now);
@@ -410,8 +413,7 @@ string scheduler::generateOutputString(const string& prefix) {
     std::ostringstream oss;
     oss << std::put_time(&timeinfo, "%Y-%m-%d_%H-%M-%S");
     string suffix = oss.str();
-
-    // Construct the output string
+    
     string output = prefix + "_" + suffix + ".txt";
 
     return output;

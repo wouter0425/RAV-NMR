@@ -13,6 +13,7 @@
 
 #include <scheduler.h>
 #include <task.h>
+#include <voter.h>
 #include <pipe.h>
 #include <defines.h>
 #include <user_functions.h>

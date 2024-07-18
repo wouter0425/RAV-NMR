@@ -9,8 +9,8 @@
 //#define TIME_BASED                        // Run the scheduler for x milliseconds
 #define MAX_RUN_TIME 40000                  // The amount of time the scheduler runs of TIME_BASED is defined
 #define ITERATION_BASED                     // Runs the scheduler for x iterations, based on the first added task
-#define MAX_ITERATIONS 2000                 // The number of times a scheduler runs if ITERATION_BASED is defined
-#define MAX_STUCK_TIME 50                   // Max time (in milliseconds) a task may stay in the same state 
+#define MAX_ITERATIONS 50000                 // The number of times a scheduler runs if ITERATION_BASED is defined
+#define MAX_STUCK_TIME 500                  // Max time (in milliseconds) a task may stay in the same state 
 
 /* Scheduler related defines */
 #define NUM_OF_CORES 4                      // Num of cores used by the scheduler
@@ -27,6 +27,6 @@
 #define MAX_LOG_INTERVAL    100             // Number of miliseconds between each log
 
 /* Redundancy related defines */
-//#define NMR                               // Uncomment when a voter task is used
+#define NMR                                 // Uncomment when a voter task is used
 
 #endif
