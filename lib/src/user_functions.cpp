@@ -112,7 +112,7 @@ void task_B_1(void) {
         write_to_pipe(BC_1, buffer);
 
  #ifdef DEBUG
-        printf("task B: read: %d \t write: %d \n", value - 1, value);
+        printf("task B_1: read: %d \t write: %d \n", value - 1, value);
 #endif
         exit(0);        
     }
@@ -140,7 +140,7 @@ void task_B_2(void) {
         write_to_pipe(BC_2, buffer);
 
 #ifdef DEBUG
-        printf("task B: read: %d \t write: %d \n", value - 1, value);
+        printf("task B_2: read: %d \t write: %d \n", value - 1, value);
 #endif
         exit(0);       
     }
@@ -168,7 +168,7 @@ void task_B_3(void) {
         write_to_pipe(BC_3, buffer);
 
 #ifdef DEBUG
-        printf("task B: read: %d \t write: %d \n", value - 1, value);
+        printf("task B_3: read: %d \t write: %d \n", value - 1, value);
 #endif
 
         exit(0);

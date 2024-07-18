@@ -21,7 +21,7 @@
 #define DECREASE    0.9                     // Decrease the core reliability by 10% when a task exits abnormally (i.e. crash)
 
 /* Log related defines*/
-//#define DEBUG                             // Has each task print its name when it runs
+#define DEBUG                               // Has each task print its name when it runs
 #define LOGGING                             // Log the parameters (core weight & core/task utility)
 //#define RUN_LOG                           // Print the runs of the first added task, used to debug
 #define MAX_LOG_INTERVAL    100             // Number of miliseconds between each log
