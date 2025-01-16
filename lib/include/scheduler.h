@@ -20,6 +20,7 @@
 #include "task.h"
 #include "core.h"
 #include "result.h"
+#include "voter.h"
 
 class scheduler {
     private:
@@ -126,7 +127,7 @@ class scheduler {
          * This function creates a new voter object with the specified parameters, casts it to a task object, 
          * and adds it to the `m_tasks` list.
          */        
-        void add_voter(const string& name, int period, int offset, int priority, void (*function)(void));
+        void add_voter(const string& name, int period, int offset, int priority, void (*function)(void), voter_type type);
         
         /**
          * @brief Cleans up all tasks by terminating their processes.

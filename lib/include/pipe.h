@@ -73,7 +73,7 @@ Pipe *declare_pipe(const char *pipe_name);
  * @param inputs Pointer to the head of the input list.
  * @param fd File descriptor to add.
  */
-void add_input(input **inputs, int fd);
+void add_input(input **inputs, int fd, int size);
 
 /**
  * @brief Checks if the task's input is full.

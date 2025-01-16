@@ -57,6 +57,16 @@
         "sstream": "cpp",
         "stdexcept": "cpp",
         "streambuf": "cpp",
-        "typeinfo": "cpp"
+        "typeinfo": "cpp",
+        "charconv": "c",
+        "chrono": "c",
+        "optional": "c",
+        "ratio": "c",
+        "format": "c",
+        "semaphore": "c",
+        "span": "c",
+        "stop_token": "c",
+        "thread": "c",
+        "variant": "c"
     }
 }

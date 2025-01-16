@@ -16,7 +16,7 @@
 
 #include <scheduler.h>
 #include <pipe.h>
-#include <voter.h>
+//#include <voter.h>
 
 void scheduler::init_scheduler()
 {
@@ -68,10 +68,17 @@ void scheduler::monitor_tasks()
                 }
             } 
             else 
-            {                
+            {
                 task->set_latest(status, result);
                 handle_task_completion(task, status, result);
+
+                auto now = std::chrono::high_resolution_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - task->getStartTime());
+
+                //printf("%s: %lld ms\n", task->get_name().c_str(), elapsed.count());
+
             }
+
         }
 
         if (task_input_full(task) && task->get_state() != task_state::running && task->period_elapsed(current_time))
@@ -79,7 +86,16 @@ void scheduler::monitor_tasks()
             task->set_fireable(true);
             int core_id;
 
-            task->get_voter() ? core_id = find_core(true) : core_id = find_core(false);            
+            if (task->get_voter())
+            {
+                voter* v = static_cast<voter*>(task);
+
+                v->get_voter_type() == voter_type::weighted ? core_id = find_core(true) : core_id = find_core(false);
+            }
+            else
+            {
+                core_id = find_core(false);
+            }
 
             (core_id != -1) ? task->set_cpu_id(core_id) : task->set_fireable(false);
         }
@@ -99,7 +115,7 @@ void scheduler::handle_task_completion(task *t, int status, pid_t result)
         if (WEXITSTATUS(status) == 0) 
         {
             t->set_success(t->get_success() + 1);
-            core->increase_weight();
+            core->update_weight(100 / MAX_SCORE_BUFFER);
 
             if (core->get_weight() > MAX_CORE_WEIGHT)
                 core->set_weight(MAX_CORE_WEIGHT);
@@ -107,17 +123,17 @@ void scheduler::handle_task_completion(task *t, int status, pid_t result)
             t->set_state(task_state::idle);
         } 
         else 
-        {
-            (status == 2) ? t->increment_errors() : t->increment_fails();
+        {            
+            (WEXITSTATUS(status) == 2) ? t->increment_errors() : t->increment_fails();
 
-            core->decrease_weight();
+            core->update_weight(0);
             t->set_state(task_state::crashed);
         }
     } 
     else if (WIFSIGNALED(status)) 
     {
         t->increment_fails();
-        core->decrease_weight();
+        core->update_weight(0);
         t->set_state(task_state::crashed);
     }
 
@@ -133,7 +149,10 @@ void scheduler::run_tasks()
         if (task->get_fireable()) 
         {
             task->set_startTime(current_time_in_ms());     
-            task->increment_runs();        
+            task->increment_runs();
+
+            auto customStartTime = std::chrono::high_resolution_clock::now();
+            task->setStartTime(customStartTime);        
 
             pid_t pid = fork();
 
@@ -178,9 +197,9 @@ void scheduler::add_task(const string& name, int period, int offset, int priorit
     return;
 }
 
-void scheduler::add_voter(const string& name, int period, int offset, int priority = 0, void (*function)(void) = NULL)
+void scheduler::add_voter(const string& name, int period, int offset, int priority = 0, void (*function)(void) = NULL, voter_type type = voter_type::standard)
 {
-    voter* v = new voter(name, period, offset, priority, function);
+    voter* v = new voter(name, period, offset, priority, function, type);
 
     m_tasks.push_back(dynamic_cast<task*>(v));
 

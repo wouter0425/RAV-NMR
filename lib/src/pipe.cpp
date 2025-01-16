@@ -33,7 +33,7 @@ Pipe *declare_pipe(const char *pipe_name)
     return p;
 }
 
-void add_input(input **inputs, int fd) 
+void add_input(input **inputs, int fd, int size) 
 {
     input *new_input = (input *)malloc(sizeof(input));
 
@@ -45,6 +45,7 @@ void add_input(input **inputs, int fd)
 
     new_input->fd = fd;
     new_input->next = NULL;
+    new_input->size = size;
 
     if (*inputs == NULL)
         *inputs = new_input;
@@ -103,7 +104,7 @@ bool task_input_full(task *t)
             perror("select");
             return false;
         }
-        
+
         current = t->get_inputs();
 
         while (current != NULL) 
@@ -113,6 +114,27 @@ bool task_input_full(task *t)
 
             current = current->next;
         }
+        
+        // current = t->get_inputs();
+
+        // int bytes_available = 0;
+
+        // while (current != NULL) 
+        // {
+        //     if (ioctl(current->fd, FIONREAD, &bytes_available) == -1) {}
+        //     else 
+        //     {   
+        //         // Check if exactly 24 bytes are available
+        //         if (bytes_available <= current->size) 
+        //         {
+        //             //printf("expected %d \t but got: %d \n", current->size, bytes_available);
+        //             return false;            
+        //         }
+        //     }
+        //     //if (!FD_ISSET(current->fd, &read_fds))
+
+        //     current = current->next;
+        // }
 
     }
 
@@ -168,6 +190,11 @@ bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size)
 void write_to_pipe(Pipe *pipe, const char *buffer) 
 {
     open_pipe_write_end(pipe);
+
+    // empty pipe
+    // char *trash;
+    // ssize_t bytesRead;
+    // while ((bytesRead = read(pipe->get_write_fd(), trash, sizeof(buffer))) > 0) {}
 
     write(pipe->get_write_fd(), buffer, strlen(buffer) + 1);
 

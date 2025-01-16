@@ -8,6 +8,8 @@
 #include <vector>
 #include <defines.h>
 
+#include <chrono>
+
 using namespace std;
 
 enum task_state {
@@ -20,6 +22,7 @@ enum task_state {
 
 typedef struct input {
     int fd;
+    int size;
     struct input *next;
 } input;
 
@@ -57,7 +60,19 @@ class task {
         pid_t m_latestResult;
         int m_latestStatus;
 
+        std::chrono::time_point<std::chrono::high_resolution_clock> m_timer;
+
+
     public:
+        // Getter for startTime
+        std::chrono::time_point<std::chrono::high_resolution_clock> getStartTime() const {
+            return m_timer;
+        }
+
+        // Setter for startTime
+        void setStartTime(const std::chrono::time_point<std::chrono::high_resolution_clock>& newStartTime) {
+            m_timer = newStartTime;
+        }
 
         /**
          * @brief Parameterized constructor for the task class.

@@ -1,9 +1,10 @@
 #include <voter.h>
 
-voter::voter(const string& name, int period, int offset, int priority, void (*function)(void))
+voter::voter(const string& name, int period, int offset, int priority, void (*function)(void), voter_type type)
         : task(name, period, offset, priority, function)
 {
     set_voter(true);
+    set_voter_type(type);
 }
 
 void voter::add_replicate(task *t)

@@ -2,13 +2,17 @@
 #define CORE_H
 
 #include "defines.h"
+#include <queue>
+
+using namespace std;
 
 class core {
     private:
         int m_coreID;
         float m_weight;
         bool m_active;
-        int m_runs;
+        int m_runs;   
+        queue<int> m_scoreBuffer;
 
     public:
         core(int id, float weight, bool active, int runs);
@@ -18,8 +22,11 @@ class core {
 
         float get_weight() { return m_weight; }
         void set_weight(float weight) { m_weight = weight; }
-        void increase_weight() { m_weight *= INCREASE; }
-        void decrease_weight() { m_weight *= DECREASE; }
+
+        void update_weight(int result);
+        
+        // void increase_weight(bool result);
+        // void decrease_weight(bool result);
 
         bool get_active() { return m_active; }
         void set_active(bool active) { m_active = active; }
