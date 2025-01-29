@@ -9,7 +9,7 @@
 //#define TIME_BASED                        // Run the scheduler for x milliseconds
 #define MAX_RUN_TIME 40000                  // The amount of time the scheduler runs of TIME_BASED is defined
 #define ITERATION_BASED                     // Runs the scheduler for x iterations, based on the first added task
-#define MAX_ITERATIONS 1000                 // The number of times a scheduler runs if ITERATION_BASED is defined
+#define MAX_ITERATIONS 5000                // The number of times a scheduler runs if ITERATION_BASED is defined
 #define MAX_STUCK_TIME 500                  // Max time (in milliseconds) a task may stay in the same state 
 
 /* Scheduler related defines */
@@ -22,12 +22,9 @@
 #define DECREASE    0.9                     // Decrease the core reliability by 10% when a task exits abnormally (i.e. crash)
 
 /* Log related defines*/
-//#define DEBUG                               // Has each task print its name when it runs
+//#define DEBUG                             // Has each task print its name when it runs
 #define LOGGING                             // Log the parameters (core weight & core/task utility)
 //#define RUN_LOG                           // Print the runs of the first added task, used to debug
-#define MAX_LOG_INTERVAL    100             // Number of miliseconds between each log
-
-/* Redundancy related defines */
-#define NMR                                 // Uncomment when a voter task is used
+#define MAX_LOG_INTERVAL    10              // Number of miliseconds between each log 
 
 #endif

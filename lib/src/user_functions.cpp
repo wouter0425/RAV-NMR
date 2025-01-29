@@ -7,140 +7,20 @@
 
 #include "../../benchmark/include/FlightController.h"
 
-#ifndef NMR
-void task_A(void) {
-    int value = 42;
-    char buffer[BUF_SIZE];
+// Declare the pipes here
+extern Pipe *AB_1;
+extern Pipe *AB_2;
+extern Pipe *AB_3;
+extern Pipe *BC_1;
+extern Pipe *BC_2;
+extern Pipe *BC_3;
+extern Pipe *CD_1;
 
-    snprintf(buffer, sizeof(buffer), "%d", value);
-
-    Timer timer;
-    while (!timer.hasElapsedMilliseconds(TASK_BUSY_TIME)) {}
-
-    write_to_pipe(AB, buffer);
-
-#ifdef DEBUG
-    printf("task A: write: %d \n", value);
-#endif
-
-    exit(0);
-}
-
-void task_B(void) {
-    char buffer[BUF_SIZE];
-
-    // Read from pipe AB
-    if (read_from_pipe(AB, buffer, BUF_SIZE)) {
-        int value = atoi(buffer);
-
-        if (value != START_VALUE)
-            exit(2);
-
-        value++;
-
-        Timer timer;
-        while (!timer.hasElapsedMilliseconds(TASK_BUSY_TIME)) {}
-        
-        snprintf(buffer, sizeof(buffer), "%d", value);
-
-        // Write to pipe BC
-        write_to_pipe(BC, buffer);
-
-#ifdef DEBUG
-        printf("task B: read: %d \t write: %d \n", value - 1, value);
-#endif
-        exit(0);
-    }
-
-    exit(1);
-}
-
-void task_C(void) {
-    char buffer[BUF_SIZE];
-
-    if (read_from_pipe(BC, buffer, BUF_SIZE)) {
-        int value = atoi(buffer);
-
-        Timer timer;
-        while (!timer.hasElapsedMilliseconds(TASK_BUSY_TIME)) {}
-
-        if (value != END_VALUE)
-            exit(2);        
-
-#ifdef DEBUG
-        printf("task C: read: %d \n", value);
-#endif
-        exit(0);
-    }
-
-#ifdef DEBUG
-    printf("C crashed \n");
-#endif
-    exit(1);
-}
-
-// void task_A(void) 
-// {
-//     //double roll, pitch;
-//     int val = 1;
-//     char buffer[4] = {0};
-
-//     //srand(time(0));
-
-//     //readSensors(&roll, &pitch);
-
-//     snprintf(buffer, sizeof(buffer), "%d", val);
-
-//     write_to_pipe(AB, buffer);
-
-//     exit(0);
-// }
-
-// void task_B(void) 
-// {
-//     double roll, pitch, yaw;
-//     double stabilization_outputs[3];
-//     char read_buffer[17] = {0};
-//     char write_buffer[26] = {0};
-
-//     if (!(read_from_pipe(AB, read_buffer, 17) && sscanf(read_buffer, "%lf %lf", &roll, &pitch) == 2))    
-//     {
-//         printf("Buffer B: %s \t size: %d \n", read_buffer, size(read_buffer));
-//         exit(1);
-//     }
-
-//     calculateStabilization(roll, pitch, yaw, stabilization_outputs);
-
-//     snprintf(write_buffer, sizeof(write_buffer), "%.2f %.2f %.2f", roll, pitch, yaw);
-//     write_to_pipe(BC, write_buffer);
-
-//     exit(0);
-// }
-
-// void task_C(void) 
-// {
-//     char buffer[26] = {0};
-//     double roll, pitch, yaw;
-
-//     if (!(read_from_pipe(BC, buffer, 24) && sscanf(buffer, "%lf %lf %lf", &roll, &pitch, &yaw) == 3))    
-//     {        
-//         printf("Buffer C: %s \n", buffer);
-//         exit(1);
-//     }
-
-//     controlMotors(roll, pitch, yaw);
-
-//     exit(0);
-// }
-
-
-#else
-
-void task_A_1(void)
+void read_sensors(void)
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("task A-1\n");
-    #endif
+#endif
 
     // Simulated sensor values
     double accelRoll     = 12.5;
@@ -152,6 +32,7 @@ void task_A_1(void)
     double alpha           = 0.98;
     double estimated_roll  = 0.0;
     double estimated_pitch = 0.0;
+    
 
     // Busy loop to simulate some processing time
     Timer timer;
@@ -162,7 +43,7 @@ void task_A_1(void)
                         + (1 - alpha) * accelRoll;
         estimated_pitch = alpha * (estimated_pitch + gyroPitchRate * 0.01)
                         + (1 - alpha) * accelPitch;
-    }
+    }    
 
     // Decide command based on thresholds
     Command sensorCommand = NO_ACTION;
@@ -172,33 +53,27 @@ void task_A_1(void)
         sensorCommand = STABILIZE_PITCH;
     }
 
-#ifdef DEBUG
-    printf("DEBUG A: A->B cmd=%s roll=%.2f pitch=%.2f\n", 
-           commandToStr(sensorCommand), estimated_roll, estimated_pitch);
-#endif
-
     // Send only what Task B needs: command, roll, pitch
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f",
              static_cast<int>(sensorCommand), estimated_roll, estimated_pitch);
 
-    write_to_pipe(AB_1, buffer);
-    write_to_pipe(AB_2, buffer);
-    write_to_pipe(AB_3, buffer);
+    AB_1->write_data(buffer);
+    AB_2->write_data(buffer);
+    AB_3->write_data(buffer);
 
     exit(0);
 }
 
-void task_B_1(void)
+void process_data_1(void)
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("task B-1\n");
-    #endif
+#endif
 
     // Read from pipe AB_1
     char buffer[64] = {0};
-    if (!read_from_pipe(AB_1, buffer, sizeof(buffer))) {
-        //printf("DEBUG B: read_from_pipe(AB_1) failed\n");
+    if (!AB_1->read_data(buffer, sizeof(buffer))) {        
         exit(1);
     }
 
@@ -260,38 +135,31 @@ void task_B_1(void)
         stabilizedYaw   = row2;
     }
 
-#ifdef DEBUG    
-    printf("DEBUG B: B->C cmd=%s inRoll=%.2f inPitch=%.2f outRoll=%.2f outPitch=%.2f outYaw=%.2f\n",
-           commandToStr(sensorCommand), roll_in, pitch_in, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-#endif
-
     // Send only what Task C needs: command, stabilizedRoll, stabilizedPitch, stabilizedYaw
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f %.2f",
              sensorCommand, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-    write_to_pipe(BC_1, buffer);
+    BC_1->write_data(buffer);    
 
     exit(0);
 }
 
 
-void task_B_2(void) 
+void process_data_2(void) 
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("task B-2\n");
-    #endif
+#endif
 
     // Read from pipe AB_1
     char buffer[64] = {0};
-    if (!read_from_pipe(AB_2, buffer, sizeof(buffer))) {
-        //printf("DEBUG B: read_from_pipe(AB_1) failed\n");
+    if (!AB_2->read_data(buffer, sizeof(buffer))) {        
         exit(1);
     }
 
     int cmdInt = 0;
     double roll_in=0.0, pitch_in=0.0;
     int parsed = sscanf(buffer, "%d %lf %lf", &cmdInt, &roll_in, &pitch_in);
-    if (parsed != 3) {
-        //printf("DEBUG B: parse error, buffer=%s\n", buffer);
+    if (parsed != 3) {        
         exit(1);
     }
     Command sensorCommand = static_cast<Command>(cmdInt);
@@ -345,27 +213,23 @@ void task_B_2(void)
         stabilizedYaw   = row2;
     }
 
-#ifdef DEBUG
-    printf("DEBUG B: B->C cmd=%s inRoll=%.2f inPitch=%.2f outRoll=%.2f outPitch=%.2f outYaw=%.2f\n",
-           commandToStr(sensorCommand), roll_in, pitch_in, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-#endif
     // Send only what Task C needs: command, stabilizedRoll, stabilizedPitch, stabilizedYaw
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f %.2f",
              sensorCommand, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-    write_to_pipe(BC_2, buffer);
+    BC_2->write_data(buffer);    
 
     exit(0);
 }
 
-void task_B_3(void) 
+void process_data_3(void) 
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("task B-3\n");
-    #endif
+#endif
 
     // Read from pipe AB_1
     char buffer[64] = {0};
-    if (!read_from_pipe(AB_3, buffer, sizeof(buffer))) {
+    if (!AB_3->read_data(buffer, sizeof(buffer))) {        
         //printf("DEBUG B: read_from_pipe(AB_1) failed\n");
         exit(1);
     }
@@ -373,8 +237,7 @@ void task_B_3(void)
     int cmdInt = 0;
     double roll_in=0.0, pitch_in=0.0;
     int parsed = sscanf(buffer, "%d %lf %lf", &cmdInt, &roll_in, &pitch_in);
-    if (parsed != 3) {
-        //printf("DEBUG B: parse error, buffer=%s\n", buffer);
+    if (parsed != 3) {        
         exit(1);
     }
     Command sensorCommand = static_cast<Command>(cmdInt);
@@ -428,30 +291,25 @@ void task_B_3(void)
         stabilizedYaw   = row2;
     }
 
-#ifdef DEBUG
-    printf("DEBUG B: B->C cmd=%s inRoll=%.2f inPitch=%.2f outRoll=%.2f outPitch=%.2f outYaw=%.2f\n",
-           commandToStr(sensorCommand), roll_in, pitch_in, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-#endif
-
     // Send only what Task C needs: command, stabilizedRoll, stabilizedPitch, stabilizedYaw
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f %.2f",
              sensorCommand, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-    write_to_pipe(BC_3, buffer);
+    BC_3->write_data(buffer);    
 
     exit(0);
 }
 
-void voter_func(void) {
-    #ifdef DEBUG
+void majority_voter(void) {
+#ifdef DEBUG
     printf("Voter \n");
-    #endif
+#endif
     char buffers[3][64] = {{0}};
     bool reads[3];
 
     // 1) Read from each B->C pipe
-    reads[0] = read_from_pipe(BC_1, buffers[0], sizeof(buffers[0]));
-    reads[1] = read_from_pipe(BC_2, buffers[1], sizeof(buffers[1]));
-    reads[2] = read_from_pipe(BC_3, buffers[2], sizeof(buffers[2]));
+    reads[0] = BC_1->read_data(buffers[0], sizeof(buffers[0]));
+    reads[1] = BC_2->read_data(buffers[1], sizeof(buffers[1]));
+    reads[2] = BC_3->read_data(buffers[2], sizeof(buffers[2]));    
 
     // 2) You could parse each buffer, compare the floats, do a majority vote
     //    For now, let's do a simplistic "string compare" approach (like you do).
@@ -471,26 +329,29 @@ void voter_func(void) {
         else exit(1); // no data
     }
 
-    // 3) Write final result to next pipe (CD_1) for Task C
-    write_to_pipe(CD_1, outputBuffer);
+    Timer timer;
+    while (!timer.hasElapsedMilliseconds(10)) { }
+
+    // 3) Write final result to next pipe (CD_1) for Task C    
+    CD_1->write_data(outputBuffer);
     exit(0);
 }
 
-void task_C_1(void) 
+void control_actuators(void) 
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("Task C \n");
-    #endif
+#endif
 
     char buffer[64] = {0};
-    if (!read_from_pipe(CD_1, buffer, sizeof(buffer))) {        
+    if (!CD_1->read_data(buffer, sizeof(buffer))) {                
         exit(1);
     }
 
     int cmdInt = 0;
     double roll_in=0.0, pitch_in=0.0, yaw_in=0.0;
     int parsed = sscanf(buffer, "%d %lf %lf %lf", &cmdInt, &roll_in, &pitch_in, &yaw_in);
-    if (parsed != 4) {        
+    if (parsed != 4) {
         exit(1);
     }
     Command finalCmd = static_cast<Command>(cmdInt);
@@ -529,14 +390,5 @@ void task_C_1(void)
         prevErrorYaw   = errorYaw;
     }
 
-#ifdef DEBUG
-    printf("DEBUG C: finalCmd=%s roll=%.2f pitch=%.2f yaw=%.2f rollOut=%.2f pitchOut=%.2f yawOut=%.2f\n",
-           commandToStr(finalCmd),
-           roll_in, pitch_in, yaw_in,
-           motorRollOutput, motorPitchOutput, motorYawOutput);
-#endif
-
     exit(0);
 }
-
-#endif

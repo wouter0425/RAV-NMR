@@ -5,12 +5,12 @@ void task_A(void);
 void task_B(void);
 void task_C(void);
 
-void task_A_1(void);
-void task_B_1(void);
-void task_B_2(void);
-void task_B_3(void);
-void task_C_1(void);
+void read_sensors(void);
+void process_data_1(void);
+void process_data_2(void);
+void process_data_3(void);
+void control_actuators(void);
 
-void voter_func(void);
+void majority_voter(void);
 
 #endif

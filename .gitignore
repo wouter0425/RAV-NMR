@@ -6,3 +6,4 @@
 
 # Ignore `bin` dir
 bin/
+results/

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <defines.h>
+#include <pipe.h>
 
 #include <chrono>
 
@@ -14,8 +15,7 @@ using namespace std;
 
 enum task_state {
     idle,
-    waiting,
-    scheduled,
+    fireable,   
     running,
     crashed,
 };
@@ -43,6 +43,7 @@ class task {
         bool m_active { false };
         bool m_fireable;
         int m_priority;
+        
         pid_t m_pid;
         void (*m_function)(void);
         input *m_inputs { NULL };
@@ -52,8 +53,13 @@ class task {
         bool m_voter { false };
         int m_runs { 0 };
         bool m_finished { false } ;
+
         unsigned long int m_period;
+        
+
         unsigned long int m_offset;
+        
+
         unsigned long int m_startTime { 0 };
         task_state m_state;
         int m_coreRuns[NUM_OF_CORES];
@@ -64,6 +70,10 @@ class task {
 
 
     public:
+        int get_priority() { return m_priority; }
+        unsigned long int get_period() { return m_period; }
+        unsigned long int get_offset() { return m_offset; }
+
         // Getter for startTime
         std::chrono::time_point<std::chrono::high_resolution_clock> getStartTime() const {
             return m_timer;
@@ -112,12 +122,29 @@ class task {
          * @return true if the task is stuck, false otherwise.
          */
         bool is_stuck(unsigned long int elapsedTime, int status, pid_t result); 
-        
+
+        /**
+         * @brief Checks if the task's input is full.
+         * 
+         * @param t Pointer to the task object.
+         * @return true if all inputs are ready to be read; false otherwise.
+         */
+        bool task_input_full(task *t);        
         
         /**
          * @brief Prints the number of times the task has run on each core.
          */
         void print_core_runs();
+
+        /**
+         * @brief Adds a file descriptor to the list of inputs.
+         *          
+         * @param fd File descriptor to add.
+         */
+        void add_input(Pipe *p, int size);
+
+        // TODO: Add comments
+        static task* declare_task(const string& name, unsigned long int period, unsigned long int offset, int priority, void (*function)(void));
 
         void increment_runs() { m_runs++; }
         int get_runs() { return m_runs; }
@@ -166,12 +193,34 @@ class task {
 
         task_state get_state() { return m_state; }
         void set_state(task_state state) { m_state = state; }
+        string state_to_string()
+        {
+            string state;
+
+            switch(m_state) {
+                case 0: state = "idle";
+                        break;
+                case 1: state = "fireable";
+                        break;
+                case 2: state = "running";
+                        break;
+                case 3: state = "crashed";
+                        break;
+                default:
+                        state = "invalid";
+                        break;
+            };
+
+            return state;
+        }
 
         void set_latest(int status, pid_t result) { m_latestStatus = status; m_latestResult = result; }
         int get_latestStatus() { return m_latestStatus; }
         pid_t get_latestResult() { return m_latestResult; }
 
         void add_core_run(int core) { m_coreRuns[core]++; };
+
+        string write_core_runs() const ;
 };
 
 #endif

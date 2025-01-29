@@ -22,6 +22,14 @@
 #include "result.h"
 #include "voter.h"
 
+using namespace std;
+
+struct CompareTask {
+    bool operator()(const task* lhs, const task* rhs) const {
+        return lhs->get_priority() < rhs->get_priority();  // Higher priority first
+    }
+};
+
 class scheduler {
     private:
         vector<task*> m_tasks;
@@ -29,11 +37,15 @@ class scheduler {
         vector<result*> m_results;
         time_t m_activationTime;
         time_t m_log_timeout;
-        int m_replicates[3];
-        int m_voter;
+
+        string m_outputDirectory {"results"};
+        //int m_replicates[3];
+        //int m_voter;
         int m_runs { 0 };
 
     public:
+
+        static scheduler* declare_scheduler();
 
         /**
          * @brief Initializes the scheduler by setting up cores and CPU affinity.
@@ -103,31 +115,20 @@ class scheduler {
         void run_tasks();
 
         /**
-         * @brief Adds a new task to the scheduler.
+         * @brief Adds a task to the scheduler's task list.
          *
-         * @param name The name of the task.
-         * @param period The period of the task.
-         * @param offset The offset of the task.
-         * @param priority The priority of the task.
-         * @param function The function to be executed by the task.
-         *
-         * This function creates a new task object with the specified parameters and adds it to the `m_tasks` list.
+         * @param t Pointer to the task to be added.
          */
-        void add_task(const string& name, int period, int offset, int priority, void (*function)(void));
+        void add_task(task *t);
+
+        //void add_task(const string& name, int period, int offset, int priority, void (*function)(void));
 
         /**
-         * @brief Adds a new voter task to the scheduler.
+         * @brief Adds a voter task to the scheduler's task list.
          *
-         * @param name The name of the voter.
-         * @param period The period of the voter.
-         * @param offset The offset of the voter.
-         * @param priority The priority of the voter.
-         * @param function The function to be executed by the voter.
-         *
-         * This function creates a new voter object with the specified parameters, casts it to a task object, 
-         * and adds it to the `m_tasks` list.
-         */        
-        void add_voter(const string& name, int period, int offset, int priority, void (*function)(void), voter_type type);
+         * @param v Pointer to the voter task to be added.
+         */     
+        void add_task(voter *v);        
         
         /**
          * @brief Cleans up all tasks by terminating their processes.
@@ -139,7 +140,7 @@ class scheduler {
         void cleanup_tasks();
 
 
-        task* get_task(int i) { return m_tasks[i]; }
+        // task* get_task(int i) { return m_tasks[i]; }
 
         /**
         * @brief Finds a task by its name.
@@ -150,7 +151,7 @@ class scheduler {
         * This function iterates through the `m_tasks` list and compares each task's name with the specified name.
         * If a matching task is found, it returns a pointer to the task. Otherwise, it returns NULL.
         */
-        task* find_task(string name);
+        // task* find_task(string name);
 
         /**
          * @brief Finds a free core for a task to run on.
@@ -178,10 +179,15 @@ class scheduler {
 
 
         void printResults();
-        void start_scheduler(scheduler *s);
+        //void start_scheduler(scheduler *s);
         void log_results();
         void write_results_to_csv();
         string generateOutputString(const string& prefix);
+        void setOutputDirectory(string name) {m_outputDirectory = name;} ;
+
+        void create_parameter_file(string &path);
+
+        // TODO: Move to utils
         long current_time_in_ms();
 
 };

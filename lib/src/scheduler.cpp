@@ -13,10 +13,17 @@
 #include <sys/prctl.h>
 #include <string.h>
 #include <algorithm>
+#include <queue>
 
+#include <writer.h>
 #include <scheduler.h>
 #include <pipe.h>
-//#include <voter.h>
+
+scheduler* scheduler::declare_scheduler()
+{
+    scheduler* s = new scheduler();
+    return s;
+}
 
 void scheduler::init_scheduler()
 {
@@ -50,8 +57,16 @@ void scheduler::monitor_tasks()
     
     unsigned long current_time = current_time_in_ms();
 
-    for (auto& task : m_tasks) 
+    priority_queue<task*, vector<task*>, CompareTask> task_queue;
+    for (task* t : m_tasks) { task_queue.push(t); }
+
+    //for (auto& task : m_tasks) 
+
+    while (!task_queue.empty())
     {   
+        task* task = task_queue.top();
+        task_queue.pop();
+
         if (!task->offset_elapsed(m_activationTime, current_time))
             continue;
         
@@ -71,19 +86,13 @@ void scheduler::monitor_tasks()
             {
                 task->set_latest(status, result);
                 handle_task_completion(task, status, result);
-
-                auto now = std::chrono::high_resolution_clock::now();
-                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - task->getStartTime());
-
-                //printf("%s: %lld ms\n", task->get_name().c_str(), elapsed.count());
-
             }
 
         }
 
-        if (task_input_full(task) && task->get_state() != task_state::running && task->period_elapsed(current_time))
-        {
-            task->set_fireable(true);
+        if (task->task_input_full(task) && task->get_state() != task_state::running && task->period_elapsed(current_time))
+        {            
+            task->set_state(task_state::fireable);
             int core_id;
 
             if (task->get_voter())
@@ -97,10 +106,8 @@ void scheduler::monitor_tasks()
                 core_id = find_core(false);
             }
 
-            (core_id != -1) ? task->set_cpu_id(core_id) : task->set_fireable(false);
+            (core_id != -1) ? task->set_cpu_id(core_id) : task->set_state(task_state::fireable);
         }
-        else
-            task->set_fireable(false);
     }
 }
 
@@ -115,7 +122,7 @@ void scheduler::handle_task_completion(task *t, int status, pid_t result)
         if (WEXITSTATUS(status) == 0) 
         {
             t->set_success(t->get_success() + 1);
-            core->update_weight(100 / MAX_SCORE_BUFFER);
+            core->update_weight(MAX_CORE_WEIGHT / MAX_SCORE_BUFFER);
 
             if (core->get_weight() > MAX_CORE_WEIGHT)
                 core->set_weight(MAX_CORE_WEIGHT);
@@ -143,10 +150,17 @@ void scheduler::handle_task_completion(task *t, int status, pid_t result)
 
 void scheduler::run_tasks()
 {
+    priority_queue<task*, vector<task*>, CompareTask> task_queue;
+    for (task* t : m_tasks) { task_queue.push(t); }
+
     // Fork and set CPU affinity for each task 
-    for (auto& task : m_tasks) 
-    {
-        if (task->get_fireable()) 
+    //for (auto& task : m_tasks) 
+    while (!task_queue.empty())
+    {   
+        task* task = task_queue.top();
+        task_queue.pop();
+    
+        if (task->get_state() == task_state::fireable) 
         {
             task->set_startTime(current_time_in_ms());     
             task->increment_runs();
@@ -188,19 +202,15 @@ void scheduler::run_tasks()
     }
 }
 
-void scheduler::add_task(const string& name, int period, int offset, int priority = 0, void (*function)(void) = NULL)
+void scheduler::add_task(task *t)
 {
-    task* t = new task(name, period, offset, priority, function);
-
     m_tasks.push_back(t);
 
     return;
 }
 
-void scheduler::add_voter(const string& name, int period, int offset, int priority = 0, void (*function)(void) = NULL, voter_type type = voter_type::standard)
+void scheduler::add_task(voter *v)
 {
-    voter* v = new voter(name, period, offset, priority, function, type);
-
     m_tasks.push_back(dynamic_cast<task*>(v));
 
     return;
@@ -215,18 +225,6 @@ void scheduler::cleanup_tasks()
     }
 
     printf("Scheduler shutting down...\n");
-}
-
-task* scheduler::find_task(string name)
-{
-    for (auto& t : m_tasks)
-    {
-        // if equal
-        if (!t->get_name().compare(name))
-            return t;
-    }
-
-    return NULL;
 }
 
 int scheduler::find_core(bool isVoter)
@@ -263,8 +261,7 @@ int scheduler::find_core(bool isVoter)
     }
 
     if (core_id == -1)
-    {
-        printf("no core available \n");
+    {        
         return -1;
     }
     
@@ -275,6 +272,8 @@ int scheduler::find_core(bool isVoter)
 
 bool scheduler::active()
 {
+    usleep(1000); // Prevents busy loop
+
 #ifdef TIME_BASED
     time_t currentTime = time(NULL);
 
@@ -282,20 +281,16 @@ bool scheduler::active()
     long currentTimeMs = currentTime * 1000;
     long activationTimeMs = m_activationTime * 1000;
 
+    cout << "\rCurrent time: " << currentTimeMs - activationTimeMs << " of " << MAX_RUN_TIME << "\t" << std::flush;
+
     if (currentTimeMs - activationTimeMs < MAX_RUN_TIME)
         return true;
     else
         return false;
 
 #else    
+    cout << "\rCurrent run: " << m_tasks[0]->get_runs() << " of " << MAX_ITERATIONS <<  "\t" << std::flush;
 
-#ifdef RUN_LOG
-    if (m_runs != m_tasks[0]->get_runs())
-        printf("run: %d \n", m_tasks[0]->get_runs());
-    
-    m_runs = m_tasks[0]->get_runs();
-    
-#endif
     if (m_tasks[0]->get_runs()  >= MAX_ITERATIONS)
         return false;
     else
@@ -315,11 +310,15 @@ void scheduler::printResults()
         printf("Core: %d \t runs: %d \t weight: %f \t state %d \n", m_cores[i]->get_coreID(), m_cores[i]->get_runs(), m_cores[i]->get_weight(), m_cores[i]->get_active());
 
     for (size_t i = 0; i < m_tasks.size(); i++)
-        printf("Task: %s \t state: %d \t fireable: %d \t input full: %d \t latest result %d \t latest status %d \n", 
-        m_tasks[i]->get_name().c_str(), m_tasks[i]->get_state(), m_tasks[i]->get_fireable(), task_input_full(m_tasks[i]), m_tasks[i]->get_latestResult(), m_tasks[i]->get_latestStatus());
+        printf("Task: %s \t state: %d \t input full: %d \t latest result %d \t latest status %d \n", 
+        m_tasks[i]->get_name().c_str(), m_tasks[i]->get_state(), m_tasks[i]->task_input_full(m_tasks[i]), m_tasks[i]->get_latestResult(), m_tasks[i]->get_latestStatus());
 }
 
 void scheduler::log_results() {
+#ifndef LOGGING
+    return;
+#endif
+
     long currentTimeMs = current_time_in_ms();
 
     if ((currentTimeMs - m_log_timeout > MAX_LOG_INTERVAL))
@@ -333,20 +332,36 @@ void scheduler::log_results() {
 
 void scheduler::write_results_to_csv() 
 {
-    string core_results = generateOutputString("results/cores/cores");
-    string weight_results = generateOutputString("results/weights/weights");
-    string task_results = generateOutputString("results/tasks/tasks");
+#ifndef LOGGING
+    return;
+#endif
+
+    string directoryName = generateOutputString(m_outputDirectory);
+
+    directoryName = "results/" + directoryName;
+    if (create_directory(directoryName))
+        return;
+
+    string core_results = directoryName + "/cores.tsv";
+    string weight_results = directoryName + "/weights.tsv";
+    string task_results = directoryName + "/tasks.tsv";
+    string summary_results = directoryName + "/summary.txt";
 
     FILE *core_file = fopen(core_results.c_str(), "w");
     FILE *weight_file = fopen(weight_results.c_str(), "w");
     FILE *task_file = fopen(task_results.c_str(), "w");
+    FILE *summary_file = fopen(summary_results.c_str(), "w");
 
-    if (!core_file || !weight_file || !task_file) 
+    string parameterFile = directoryName + "/parameters.txt";
+    create_parameter_file(parameterFile);
+
+    if (!core_file || !weight_file || !task_file || !summary_file) 
     {
         perror("Failed to open file");
         return;
     }
 
+    // Core banner
     for (size_t i = 0; i < m_cores.size(); i++)
     {
         if (!i) 
@@ -365,6 +380,7 @@ void scheduler::write_results_to_csv()
         }
     }
 
+    // Task banner
     for (size_t i = 0; i < m_tasks.size(); i++)
     {
         if (!i)
@@ -410,9 +426,59 @@ void scheduler::write_results_to_csv()
         fprintf(task_file, "\n");
     }
 
+
+    for (size_t i = 0; i < m_tasks.size(); i++)
+    {
+        fprintf(summary_file, "Task: %s \t succesfull runs: %d \t failed runs: %d \t error runs: %d \t", m_tasks[i]->get_name().c_str(), m_tasks[i]->get_success(), m_tasks[i]->get_fails(), m_tasks[i]->get_errors());
+        fprintf(summary_file, "%s", m_tasks[i]->write_core_runs().c_str());
+    }
+
+    for (int i = 0; i < NUM_OF_CORES && i != SCHEDULER_CORE; i++)
+        fprintf(summary_file, "Core: %d \t runs: %d \t weight: %f \t state %d \n", m_cores[i]->get_coreID(), m_cores[i]->get_runs(), m_cores[i]->get_weight(), m_cores[i]->get_active());
+
+    for (size_t i = 0; i < m_tasks.size(); i++)
+        fprintf(summary_file, "Task: %s \t state: %d \t input full: %d \t latest result %d \t latest status %d \n", 
+        m_tasks[i]->get_name().c_str(), m_tasks[i]->get_state(), m_tasks[i]->task_input_full(m_tasks[i]), m_tasks[i]->get_latestResult(), m_tasks[i]->get_latestStatus());
+
     fclose(core_file);
     fclose(weight_file);
     fclose(task_file);
+    fclose(summary_file);
+}
+
+void scheduler::create_parameter_file(string &path)
+{
+    FILE *injection_file = fopen(path.c_str(), "w");
+
+    if (!injection_file)
+        return;
+
+    fprintf(injection_file, "*** Parameter file *** \n");
+    fprintf(injection_file, "task busy time: %d \n", TASK_BUSY_TIME);
+    fprintf(injection_file, "max read time: %d \n", MAX_READ_TIME);
+#ifdef ITERATION_BASED
+    fprintf(injection_file, "iterations: %d \n", MAX_ITERATIONS);
+#elif
+    fprintf(injection_file, "run time: %d \n", MAX_RUN_TIME);
+#endif
+    fprintf(injection_file, "cores: %d \n", NUM_OF_CORES);
+
+    for (core* c : m_cores)
+    {
+        fprintf(injection_file, "\t core: %d \n", c->get_coreID());
+    }
+
+    fprintf(injection_file, "scheduler core: %d \n", SCHEDULER_CORE);
+    fprintf(injection_file, "core buffer: %d \n", MAX_SCORE_BUFFER);
+    fprintf(injection_file, "max stuck time: %d \n\n", MAX_STUCK_TIME);
+    fprintf(injection_file, "Task descriptions: \n");
+    fprintf(injection_file, "Name: \t Offset \t Period: \t Priority: \n");
+    for (task* t : m_tasks)
+    {
+        fprintf(injection_file, "%s \t %ld \t %ld \t %d \n", t->get_name().c_str(), t->get_offset(), t->get_period(), t->get_priority());
+    }
+
+
 }
 
 long scheduler::current_time_in_ms() 

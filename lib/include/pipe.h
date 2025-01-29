@@ -26,38 +26,37 @@
 #include <stdbool.h>
 
 #include "defines.h"
-#include "task.h"
+//#include "task.h"
 
 class Pipe {
     private:
         int m_read_fd;               // File descriptor for the read end
         int m_write_fd;              // File descriptor for the write end
         char *m_name;                // Name of the pipe
-        struct Pipe *m_next;         // Pointer to the next pipe in the list
+        //struct Pipe *m_next;         // Pointer to the next pipe in the list
 
     public:
-        Pipe(int read_fd, int write_fd, const char* name, Pipe *next);
+        Pipe();
+        Pipe(int read_fd, int write_fd, const char* name);
+
+        /**
+         * @brief Creates a new pipe and returns a Pipe object.
+         * 
+         * @param pipe_name Name of the pipe.
+         * @return Pointer to the created Pipe object.
+         */
+        static Pipe* declare_pipe(const char* name);
 
         int get_read_fd() { return m_read_fd; }
 
         int get_write_fd() { return m_write_fd; }
 
-        char* get_name() { return m_name; }
-};
+        //char* get_name() { return m_name; }
 
-// Declare the pipes here
-#ifndef NMR
-extern Pipe *AB;
-extern Pipe *BC;
-#else
-extern Pipe *AB_1;
-extern Pipe *AB_2;
-extern Pipe *AB_3;
-extern Pipe *BC_1;
-extern Pipe *BC_2;
-extern Pipe *BC_3;
-extern Pipe *CD_1;
-#endif
+        bool read_data(char *buffer, size_t buf_size);
+
+        void write_data(const char *buffer);
+};
 
 /**
  * @brief Creates a new pipe and returns a Pipe object.
@@ -65,7 +64,7 @@ extern Pipe *CD_1;
  * @param pipe_name Name of the pipe.
  * @return Pointer to the created Pipe object.
  */
-Pipe *declare_pipe(const char *pipe_name);
+//Pipe *declare_pipe(const char *pipe_name);
 
 /**
  * @brief Adds a file descriptor to the list of inputs.
@@ -73,15 +72,9 @@ Pipe *declare_pipe(const char *pipe_name);
  * @param inputs Pointer to the head of the input list.
  * @param fd File descriptor to add.
  */
-void add_input(input **inputs, int fd, int size);
+//void add_input(input **inputs, int fd, int size);
 
-/**
- * @brief Checks if the task's input is full.
- * 
- * @param t Pointer to the task object.
- * @return true if all inputs are ready to be read; false otherwise.
- */
-bool task_input_full(task *t);
+
 
 /**
  * @brief Reads data from a pipe into a buffer.
@@ -91,7 +84,7 @@ bool task_input_full(task *t);
  * @param buf_size Size of the buffer.
  * @return true if data was successfully read; false otherwise.
  */
-bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size);
+//bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size);
 
 /**
  * @brief Writes data to a pipe.
@@ -99,9 +92,6 @@ bool read_from_pipe(Pipe *pipe, char *buffer, size_t buf_size);
  * @param pipe Pointer to the Pipe object.
  * @param buffer Buffer containing the data to write.
  */
-void write_to_pipe(Pipe *pipe, const char *buffer);
-
-
-
+//void write_to_pipe(Pipe *pipe, const char *buffer);
 
 #endif

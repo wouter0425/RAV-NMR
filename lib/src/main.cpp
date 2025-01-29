@@ -18,13 +18,9 @@
 #include <defines.h>
 #include <user_functions.h>
 
-// Create the scheduler
-scheduler s;
+void handle_signal(int sig);
 
-#ifndef NMR
-Pipe *AB;
-Pipe *BC;
-#else
+/* Pipes have to be declared in the global scope*/
 Pipe *AB_1;
 Pipe *AB_2;
 Pipe *AB_3;
@@ -34,90 +30,79 @@ Pipe *BC_2;
 Pipe *BC_3;
 
 Pipe *CD_1;
-#endif
 
-void handle_signal(int sig);
+scheduler* s;
 
 int main()
 {
-    // exit handler function
+    // Register the signal handler for SIGINT
     signal(SIGINT, handle_signal);
 
-#ifdef NMR
-    // NMR operation
-    AB_1 = declare_pipe("pipe_AB_1");
-    AB_2 = declare_pipe("pipe_AB_2");
-    AB_3 = declare_pipe("pipe_AB_3");
+    /* Initialize the scheduler */
+    s = scheduler::declare_scheduler();
+    s->setOutputDirectory("standard");
+    s->init_scheduler();
 
-    BC_1 = declare_pipe("pipe_BC_1");
-    BC_2 = declare_pipe("pipe_BC_2");
-    BC_3 = declare_pipe("pipe_BC_3");
+    /* Declare the pipes */
+    AB_1 = Pipe::declare_pipe("pipe_AB_1");    
+    AB_2 = Pipe::declare_pipe("pipe_AB_2");    
+    AB_3 = Pipe::declare_pipe("pipe_AB_3");    
+    BC_1 = Pipe::declare_pipe("pipe_BC_1");    
+    BC_2 = Pipe::declare_pipe("pipe_BC_2");    
+    BC_3 = Pipe::declare_pipe("pipe_BC_3");    
+    CD_1 = Pipe::declare_pipe("pipe_CD");
 
-    CD_1 = declare_pipe("pipe_CD");
+    /* Declare the tasks */
+    task* task_A_1 = task::declare_task("task_A_1", 100, 0, 0, read_sensors);
+    task* task_B_1 = task::declare_task("task_B_1", 0, 0, 1, process_data_1);
+    task* task_B_2 = task::declare_task("task_B_2", 0, 0, 1, process_data_2);    
+    task* task_B_3 = task::declare_task("task_B_3", 0, 0, 1, process_data_3);
+    task* task_C_1 = task::declare_task("task_C_1", 0, 0, 2, control_actuators);
 
-    s.add_task("task_A_1", 200, 0, 0, task_A_1);
-    s.add_task("task_B_1", 0, 0, 2, task_B_1);
-    s.add_task("task_B_2", 0, 0, 2, task_B_2);
-    s.add_task("task_B_3", 0, 0, 2, task_B_3);
-    s.add_voter("voter", 0, 0, 3,voter_func, voter_type::weighted);
-    s.add_task("task_C_1", 0, 0, 1, task_C_1);
+    /* Setup the task inputs */
+    task_C_1->add_input(CD_1, 4);
+    task_B_1->add_input(AB_1, 4);
+    task_B_3->add_input(AB_3, 4);
+    task_B_2->add_input(AB_2, 4);
 
-    add_input(&s.find_task("task_B_1")->get_inputs_ref(), AB_1->get_read_fd(),4);
-    add_input(&s.find_task("task_B_2")->get_inputs_ref(), AB_2->get_read_fd(),4);
-    add_input(&s.find_task("task_B_3")->get_inputs_ref(), AB_3->get_read_fd(),4);
-    add_input(&s.find_task("task_C_1")->get_inputs_ref(), CD_1->get_read_fd(),4);
+    /* Create the voter and add replicates */
+    voter* v = voter::declare_voter("voter", 0, 0, 1, majority_voter, voter_type::standard);
+    v->add_replicate(task_B_1);
+    v->add_replicate(task_B_2);
+    v->add_replicate(task_B_3);
 
-    voter* v = static_cast<voter*>(s.find_task("voter"));
-
-    v->add_replicate(s.find_task("task_B_1"));
-    v->add_replicate(s.find_task("task_B_2"));
-    v->add_replicate(s.find_task("task_B_3"));
-
-#else
-    // Normal operation
-    AB = declare_pipe("pipe_AB");
-    BC = declare_pipe("pipe_BC");
-
-    // Create the tasks
-    s.add_task("task_A", 200, 0, 0, task_A);
-    s.add_task("task_B", 0, 0, 0, task_B);
-    s.add_task("task_C", 0, 0, 0, task_C);
-
-    // Set input for tasks
-    add_input(&s.find_task("task_B")->get_inputs_ref(), AB->get_read_fd(), 4);
-    add_input(&s.find_task("task_C")->get_inputs_ref(), BC->get_read_fd(), 4);
-#endif
-
-    s.init_scheduler();
+    /* Add tasks to the scheduler */
+    s->add_task(task_A_1);
+    s->add_task(task_B_1);
+    s->add_task(task_B_2);
+    s->add_task(task_B_3);
+    s->add_task(v);   
+    s->add_task(task_C_1);
 
     // Scheduler loop
-    while(s.active())
+    while(s->active())
     {
-        s.monitor_tasks();
-        s.run_tasks();
-#ifdef LOGGING
-        s.log_results();
-#endif   
-        usleep(10); // Prevents busy loop
+        s->monitor_tasks();
+        s->run_tasks();
+        //s->log_results();
     }
 
-#ifdef LOGGING
-    s.write_results_to_csv();
-#endif
+    s->write_results_to_csv();
 
-    s.printResults();
+    s->printResults();
 
-    s.cleanup_tasks();
+    s->cleanup_tasks();
 
     return 0;
 }
 
-void handle_signal(int sig) {
-    s.printResults();
-    s.write_results_to_csv();
-    s.cleanup_tasks();
+void handle_signal(int sig) 
+{
+    s->printResults();
+    s->write_results_to_csv();
 
-    if (sig == SIGINT) {
+    if (sig == SIGINT) 
+    {
         printf("Scheduler received SIGINT, shutting down...\n");
         exit(EXIT_SUCCESS);
     }

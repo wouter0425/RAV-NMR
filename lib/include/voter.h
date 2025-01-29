@@ -20,6 +20,7 @@ class voter : public task {
 
     public:
         voter(const string& name, int period, int offset, int priority, void (*function)(void), voter_type type);
+        static voter* declare_voter(const string& name, int period, int offset, int priority, void (*function)(void), voter_type type);
         bool check_replicate_state(task_state state);
         void add_replicate(task *t);
         bool get_voter_fireable();
