@@ -80,12 +80,16 @@ void scheduler::monitor_tasks()
                 {
                     task->set_state(task_state::crashed);
                     handle_task_completion(task, 1, result);
+
+                    continue;
                 }
             } 
             else 
             {
                 task->set_latest(status, result);
                 handle_task_completion(task, status, result);
+
+                continue;
             }
 
         }
@@ -106,7 +110,8 @@ void scheduler::monitor_tasks()
                 core_id = find_core(false);
             }
 
-            (core_id != -1) ? task->set_cpu_id(core_id) : task->set_state(task_state::fireable);
+            //(core_id != -1) ? task->set_cpu_id(core_id) : task->set_state(task_state::fireable);
+            (core_id != -1) ? task->set_cpu_id(core_id) : task->set_state(task_state::idle);
         }
     }
 }
@@ -132,7 +137,7 @@ void scheduler::handle_task_completion(task *t, int status, pid_t result)
         else 
         {            
             (WEXITSTATUS(status) == 2) ? t->increment_errors() : t->increment_fails();
-
+            
             core->update_weight(0);
             t->set_state(task_state::crashed);
         }
@@ -224,6 +229,16 @@ void scheduler::cleanup_tasks()
         waitpid(m_tasks[i]->get_pid(), NULL, 0);
     }
 
+    for (task* t : m_tasks)
+    {
+        delete t;
+    }
+
+    for (core* c : m_cores)
+    {
+        delete c;
+    }
+
     printf("Scheduler shutting down...\n");
 }
 
@@ -260,10 +275,18 @@ int scheduler::find_core(bool isVoter)
         }
     }
 
+    // If no available core found, return
     if (core_id == -1)
     {        
         return -1;
     }
+
+    if (isVoter && m_cores[core_id]->get_weight() < 80)
+    {
+        printf("not reliable \n");
+        return -1;
+    }
+
     
     m_cores[core_id]->set_active(true);    
 
@@ -323,7 +346,7 @@ void scheduler::log_results() {
 
     if ((currentTimeMs - m_log_timeout > MAX_LOG_INTERVAL))
     {
-        result *r = new result(m_tasks, m_cores, (currentTimeMs - (m_activationTime * 1000)));
+        result r(m_tasks, m_cores, (currentTimeMs - (m_activationTime * 1000)));
         m_results.push_back(r);
 
         m_log_timeout = currentTimeMs;
@@ -397,14 +420,14 @@ void scheduler::write_results_to_csv()
 
     for (auto& result : m_results)
     {
-        fprintf(core_file, "%ld\t", result->m_time);
-        fprintf(weight_file, "%ld\t", result->m_time);
-        fprintf(task_file, "%ld\t", result->m_time);
+        fprintf(core_file, "%ld\t", result.m_time);
+        fprintf(weight_file, "%ld\t", result.m_time);
+        fprintf(task_file, "%ld\t", result.m_time);
 
         for (size_t j = 0; j < m_cores.size(); j++)
         {
-            fprintf(core_file, "%d", (result->m_cores[j]));
-            fprintf(weight_file, "%f", (result->m_weights[j]));
+            fprintf(core_file, "%d", (result.m_cores[j]));
+            fprintf(weight_file, "%f", (result.m_weights[j]));
             
             if (j < m_cores.size() - 1) 
             {
@@ -415,7 +438,7 @@ void scheduler::write_results_to_csv()
 
         for (size_t j = 0; j < m_tasks.size(); j++)
         {
-            fprintf(task_file, "%d", result->m_tasks[j]);
+            fprintf(task_file, "%d", result.m_tasks[j]);
 
             if (j < m_tasks.size() - 1)
                 fprintf(task_file, "\t");

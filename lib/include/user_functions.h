@@ -1,6 +1,9 @@
 #ifndef USER_FUNCTIONS_H
 #define USER_FUNCTIONS_H
 
+void read_sensors_0(void);
+void process_data_0(void);
+
 void task_A(void);
 void task_B(void);
 void task_C(void);

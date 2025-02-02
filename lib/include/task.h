@@ -26,11 +26,6 @@ typedef struct input {
     struct input *next;
 } input;
 
-typedef struct run_log {
-    time_t time;
-    bool success;
-} run_log;
-
 typedef struct replicate {
     string name;
     bool armed;
@@ -50,6 +45,7 @@ class task {
         int m_success { 0 };
         int m_fails { 0 };
         int m_errors { 0 };
+        int m_inputErrors { 0 };
         bool m_voter { false };
         int m_runs { 0 };
         bool m_finished { false } ;
@@ -184,6 +180,9 @@ class task {
 
         int get_errors() { return m_errors; }
         void increment_errors() { m_errors++; }
+
+        int get_input_errors() const { return m_inputErrors; }
+        void increment_input_errors() { m_inputErrors++; }
 
         bool get_voter() { return m_voter; }
         void set_voter(bool voter) { m_voter = voter; }

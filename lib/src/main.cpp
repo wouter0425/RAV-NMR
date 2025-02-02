@@ -40,7 +40,7 @@ int main()
 
     /* Initialize the scheduler */
     s = scheduler::declare_scheduler();
-    s->setOutputDirectory("standard");
+    s->setOutputDirectory("weightedProof");
     s->init_scheduler();
 
     /* Declare the pipes */
@@ -53,7 +53,7 @@ int main()
     CD_1 = Pipe::declare_pipe("pipe_CD");
 
     /* Declare the tasks */
-    task* task_A_1 = task::declare_task("task_A_1", 100, 0, 0, read_sensors);
+    task* task_A_1 = task::declare_task("task_A_1", 150, 0, 0, read_sensors);
     task* task_B_1 = task::declare_task("task_B_1", 0, 0, 1, process_data_1);
     task* task_B_2 = task::declare_task("task_B_2", 0, 0, 1, process_data_2);    
     task* task_B_3 = task::declare_task("task_B_3", 0, 0, 1, process_data_3);
@@ -66,7 +66,7 @@ int main()
     task_B_2->add_input(AB_2, 4);
 
     /* Create the voter and add replicates */
-    voter* v = voter::declare_voter("voter", 0, 0, 1, majority_voter, voter_type::standard);
+    voter* v = voter::declare_voter("voter", 0, 0, 1, majority_voter, voter_type::weighted);
     v->add_replicate(task_B_1);
     v->add_replicate(task_B_2);
     v->add_replicate(task_B_3);
@@ -79,12 +79,28 @@ int main()
     s->add_task(v);   
     s->add_task(task_C_1);
 
+    // No NMR
+    // AB_1 = Pipe::declare_pipe("pipe_AB_1");    
+    // CD_1 = Pipe::declare_pipe("pipe_CD_1");
+
+    // task* task_A = task::declare_task("task_A", 150, 0, 0, read_sensors_0);
+    // task* task_B = task::declare_task("task_B", 0, 0, 1, process_data_0);
+    // task* task_C = task::declare_task("task_C", 0, 0, 2, control_actuators);
+
+    // task_B->add_input(AB_1, 4);
+    // task_C->add_input(CD_1, 4);
+
+    // s->add_task(task_A);
+    // s->add_task(task_B);
+    // s->add_task(task_C);
+    
+
     // Scheduler loop
     while(s->active())
     {
         s->monitor_tasks();
         s->run_tasks();
-        //s->log_results();
+        s->log_results();
     }
 
     s->write_results_to_csv();

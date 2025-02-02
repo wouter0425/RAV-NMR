@@ -9,7 +9,7 @@
 //#define TIME_BASED                        // Run the scheduler for x milliseconds
 #define MAX_RUN_TIME 40000                  // The amount of time the scheduler runs of TIME_BASED is defined
 #define ITERATION_BASED                     // Runs the scheduler for x iterations, based on the first added task
-#define MAX_ITERATIONS 5000                // The number of times a scheduler runs if ITERATION_BASED is defined
+#define MAX_ITERATIONS 200               // The number of times a scheduler runs if ITERATION_BASED is defined
 #define MAX_STUCK_TIME 500                  // Max time (in milliseconds) a task may stay in the same state 
 
 /* Scheduler related defines */

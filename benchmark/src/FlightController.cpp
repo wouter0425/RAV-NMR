@@ -3,6 +3,7 @@
 #include "timer.h"
 #include "defines.h"
 
+#include <iostream>
 #include <stdio.h>
 #include <math.h>
 #include <array>
@@ -209,11 +210,11 @@ Command calculateStabilization(const Command &command)
 
     // Log corrections based on the command
     if (command == STABILIZE_ROLL) {
-        //std::cout << "Task 2: Calculating roll correction: " << -0.8 * fictiveRoll << "\n";
+        std::cout << "Task 2: Calculating roll correction: " << -0.8 * fictiveRoll << "\n";
     } else if (command == STABILIZE_PITCH) {
-        //std::cout << "Task 2: Calculating pitch correction: " << -0.8 * fictivePitch << "\n";
+        std::cout << "Task 2: Calculating pitch correction: " << -0.8 * fictivePitch << "\n";
     } else if (command == STABILIZE_YAW) {
-        //std::cout << "Task 2: Calculating yaw correction: " << -0.8 * fictiveYaw << "\n";
+        std::cout << "Task 2: Calculating yaw correction: " << -0.8 * fictiveYaw << "\n";
     }
 
     return command;
@@ -250,19 +251,19 @@ void controlMotors(const Command &command) {
             double derivativeRoll = errorRoll - prevErrorRoll;
             rollOutput = Kp * errorRoll + Ki * integralRoll + Kd * derivativeRoll;
             prevErrorRoll = errorRoll;
-            //std::cout << "Task 3: Adjusting motors for roll stabilization: " << rollOutput << " degrees.\n";
+            std::cout << "Task 3: Adjusting motors for roll stabilization: " << rollOutput << " degrees.\n";
         } else if (command == STABILIZE_PITCH) {
             integralPitch += errorPitch;
             double derivativePitch = errorPitch - prevErrorPitch;
             pitchOutput = Kp * errorPitch + Ki * integralPitch + Kd * derivativePitch;
             prevErrorPitch = errorPitch;
-            //std::cout << "Task 3: Adjusting motors for pitch stabilization: " << pitchOutput << " degrees.\n";
+            std::cout << "Task 3: Adjusting motors for pitch stabilization: " << pitchOutput << " degrees.\n";
         } else if (command == STABILIZE_YAW) {
             integralYaw += errorYaw;
             double derivativeYaw = errorYaw - prevErrorYaw;
             yawOutput = Kp * errorYaw + Ki * integralYaw + Kd * derivativeYaw;
             prevErrorYaw = errorYaw;
-            //std::cout << "Task 3: Adjusting motors for yaw stabilization: " << yawOutput << " degrees.\n";
+            std::cout << "Task 3: Adjusting motors for yaw stabilization: " << yawOutput << " degrees.\n";
         }
     }
 }

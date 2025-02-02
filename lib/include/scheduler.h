@@ -34,7 +34,7 @@ class scheduler {
     private:
         vector<task*> m_tasks;
         vector<core*> m_cores;
-        vector<result*> m_results;
+        vector<result> m_results;
         time_t m_activationTime;
         time_t m_log_timeout;
 
