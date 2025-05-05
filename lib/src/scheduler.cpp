@@ -50,6 +50,18 @@ void scheduler::init_scheduler()
     }
 }
 
+void scheduler::start_scheduler()
+{
+    while(active())
+    {
+        monitor_tasks();
+        run_tasks();
+        log_results();
+    }
+
+    printResults();
+}
+
 void scheduler::monitor_tasks()
 {
     int status;
@@ -110,8 +122,14 @@ void scheduler::monitor_tasks()
                 core_id = find_core(false);
             }
 
-            //(core_id != -1) ? task->set_cpu_id(core_id) : task->set_state(task_state::fireable);
-            (core_id != -1) ? task->set_cpu_id(core_id) : task->set_state(task_state::idle);
+            if (core_id != -1)
+            {
+                task->set_cpu_id(core_id);
+            }
+            else
+            {
+                task->set_state(task_state::idle);
+            }
         }
     }
 }
@@ -147,10 +165,13 @@ void scheduler::handle_task_completion(task *t, int status, pid_t result)
         t->increment_fails();
         core->update_weight(0);
         t->set_state(task_state::crashed);
-    }
 
+    }
+    
     core->increase_runs();
     core->set_active(false);
+
+    t->incrementRuntime();
 }
 
 void scheduler::run_tasks()
@@ -158,8 +179,7 @@ void scheduler::run_tasks()
     priority_queue<task*, vector<task*>, CompareTask> task_queue;
     for (task* t : m_tasks) { task_queue.push(t); }
 
-    // Fork and set CPU affinity for each task 
-    //for (auto& task : m_tasks) 
+    // Fork and set CPU affinity for each task
     while (!task_queue.empty())
     {   
         task* task = task_queue.top();
@@ -284,6 +304,7 @@ int scheduler::find_core(bool isVoter)
     if (isVoter && m_cores[core_id]->get_weight() < 80)
     {
         printf("not reliable \n");
+        
         return -1;
     }
 
@@ -325,7 +346,20 @@ void scheduler::printResults()
 {
     for (size_t i = 0; i < m_tasks.size(); i++)
     {
-        printf("Task: %s \t succesfull runs: %d \t failed runs: %d \t error runs: %d \t", m_tasks[i]->get_name().c_str(), m_tasks[i]->get_success(), m_tasks[i]->get_fails(), m_tasks[i]->get_errors());
+        int iterations = 0;
+        iterations += m_tasks[i]->get_success();
+        iterations += m_tasks[i]->get_fails();
+        iterations += m_tasks[i]->get_errors();
+    
+        printf("Task: %s \t total runs: %d \t successful runs: %d \t failed runs: %d \t error runs: %d \t total task time: %lld \t average task time: %f \t", 
+            m_tasks[i]->get_name().c_str(),
+            iterations,
+            m_tasks[i]->get_success(), 
+            m_tasks[i]->get_fails(), 
+            m_tasks[i]->get_errors(),
+            m_tasks[i]->getRuntime(),
+            static_cast<double>(m_tasks[i]->getRuntime()) / iterations);
+    
         m_tasks[i]->print_core_runs();
     }
 
@@ -333,8 +367,8 @@ void scheduler::printResults()
         printf("Core: %d \t runs: %d \t weight: %f \t state %d \n", m_cores[i]->get_coreID(), m_cores[i]->get_runs(), m_cores[i]->get_weight(), m_cores[i]->get_active());
 
     for (size_t i = 0; i < m_tasks.size(); i++)
-        printf("Task: %s \t state: %d \t input full: %d \t latest result %d \t latest status %d \n", 
-        m_tasks[i]->get_name().c_str(), m_tasks[i]->get_state(), m_tasks[i]->task_input_full(m_tasks[i]), m_tasks[i]->get_latestResult(), m_tasks[i]->get_latestStatus());
+        printf("Task: %s \t state: %d \t input full: %d \t latest result %d \t latest status %d \t Average runtime: %lld \n", 
+        m_tasks[i]->get_name().c_str(), m_tasks[i]->get_state(), m_tasks[i]->task_input_full(m_tasks[i]), m_tasks[i]->get_latestResult(), m_tasks[i]->get_latestStatus(), m_tasks[i]->getRuntime());
 }
 
 void scheduler::log_results() {
@@ -452,16 +486,37 @@ void scheduler::write_results_to_csv()
 
     for (size_t i = 0; i < m_tasks.size(); i++)
     {
-        fprintf(summary_file, "Task: %s \t succesfull runs: %d \t failed runs: %d \t error runs: %d \t", m_tasks[i]->get_name().c_str(), m_tasks[i]->get_success(), m_tasks[i]->get_fails(), m_tasks[i]->get_errors());
+        int iterations = 0;
+        iterations += m_tasks[i]->get_success();
+        iterations += m_tasks[i]->get_fails();
+        iterations += m_tasks[i]->get_errors();
+    
+        fprintf(summary_file, "Task: %s \t total runs: %d \t successful runs: %d \t failed runs: %d \t error runs: %d \t total task time: %lld \t average task time: %.2f \t", 
+            m_tasks[i]->get_name().c_str(),
+            iterations,
+            m_tasks[i]->get_success(),
+            m_tasks[i]->get_fails(),
+            m_tasks[i]->get_errors(),
+            m_tasks[i]->getRuntime(),
+            static_cast<double>(m_tasks[i]->getRuntime()) / iterations);
+    
         fprintf(summary_file, "%s", m_tasks[i]->write_core_runs().c_str());
     }
+    
 
     for (int i = 0; i < NUM_OF_CORES && i != SCHEDULER_CORE; i++)
         fprintf(summary_file, "Core: %d \t runs: %d \t weight: %f \t state %d \n", m_cores[i]->get_coreID(), m_cores[i]->get_runs(), m_cores[i]->get_weight(), m_cores[i]->get_active());
 
+        
     for (size_t i = 0; i < m_tasks.size(); i++)
+    {
         fprintf(summary_file, "Task: %s \t state: %d \t input full: %d \t latest result %d \t latest status %d \n", 
-        m_tasks[i]->get_name().c_str(), m_tasks[i]->get_state(), m_tasks[i]->task_input_full(m_tasks[i]), m_tasks[i]->get_latestResult(), m_tasks[i]->get_latestStatus());
+        m_tasks[i]->get_name().c_str(), 
+        m_tasks[i]->get_state(), 
+        m_tasks[i]->task_input_full(m_tasks[i]), 
+        m_tasks[i]->get_latestResult(), 
+        m_tasks[i]->get_latestStatus());
+    }
 
     fclose(core_file);
     fclose(weight_file);

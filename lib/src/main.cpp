@@ -40,7 +40,7 @@ int main()
 
     /* Initialize the scheduler */
     s = scheduler::declare_scheduler();
-    s->setOutputDirectory("weightedProof");
+    s->setOutputDirectory("RAV-NMR");
     s->init_scheduler();
 
     /* Declare the pipes */
@@ -77,36 +77,15 @@ int main()
     s->add_task(task_B_2);
     s->add_task(task_B_3);
     s->add_task(v);   
-    s->add_task(task_C_1);
+    s->add_task(task_C_1);  
 
-    // No NMR
-    // AB_1 = Pipe::declare_pipe("pipe_AB_1");    
-    // CD_1 = Pipe::declare_pipe("pipe_CD_1");
+    /* Start the scheduler loop */
+    s->start_scheduler();
 
-    // task* task_A = task::declare_task("task_A", 150, 0, 0, read_sensors_0);
-    // task* task_B = task::declare_task("task_B", 0, 0, 1, process_data_0);
-    // task* task_C = task::declare_task("task_C", 0, 0, 2, control_actuators);
+    /* Optional: write the result in .tsv format */
+    s->write_results_to_tsv();    
 
-    // task_B->add_input(AB_1, 4);
-    // task_C->add_input(CD_1, 4);
-
-    // s->add_task(task_A);
-    // s->add_task(task_B);
-    // s->add_task(task_C);
-    
-
-    // Scheduler loop
-    while(s->active())
-    {
-        s->monitor_tasks();
-        s->run_tasks();
-        s->log_results();
-    }
-
-    s->write_results_to_csv();
-
-    s->printResults();
-
+    /* Free any allocated memory */
     s->cleanup_tasks();
 
     return 0;
@@ -115,7 +94,7 @@ int main()
 void handle_signal(int sig) 
 {
     s->printResults();
-    s->write_results_to_csv();
+    s->write_results_to_tsv();
 
     if (sig == SIGINT) 
     {

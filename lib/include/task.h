@@ -57,6 +57,7 @@ class task {
         
 
         unsigned long int m_startTime { 0 };
+        long long m_runTime { 0 };
         task_state m_state;
         int m_coreRuns[NUM_OF_CORES];
         pid_t m_latestResult;
@@ -69,6 +70,19 @@ class task {
         int get_priority() { return m_priority; }
         unsigned long int get_period() { return m_period; }
         unsigned long int get_offset() { return m_offset; }
+
+        long long getElapsedMilliseconds() const {
+            auto now = std::chrono::high_resolution_clock::now();
+            return std::chrono::duration_cast<std::chrono::milliseconds>(now - getStartTime()).count();
+        }
+
+        void incrementRuntime() 
+        { 
+            auto now = std::chrono::high_resolution_clock::now();
+            m_runTime += std::chrono::duration_cast<std::chrono::milliseconds>(now - getStartTime()).count();
+        }
+
+        long long getRuntime() { return m_runTime; }
 
         // Getter for startTime
         std::chrono::time_point<std::chrono::high_resolution_clock> getStartTime() const {

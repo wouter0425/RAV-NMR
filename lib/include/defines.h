@@ -2,14 +2,12 @@
 #define DEFINES_H
 
 /* Task related defines */
-#define TASK_BUSY_TIME  50                 // The time a task is "busy". Used to simulate the time a task runs
+#define TASK_BUSY_TIME  50                  // The time a task is "busy". Used to simulate the time a task runs
 #define MAX_READ_TIME   1000                // Max time (in milliseconds) a task waits for a pipe to become available
-//#define START_VALUE    42                   // The value the first task starts with (for detecting errors)
-//#define END_VALUE    43                     // The value the last task finished with (for detecting errors)
 //#define TIME_BASED                        // Run the scheduler for x milliseconds
 #define MAX_RUN_TIME 40000                  // The amount of time the scheduler runs of TIME_BASED is defined
 #define ITERATION_BASED                     // Runs the scheduler for x iterations, based on the first added task
-#define MAX_ITERATIONS 200               // The number of times a scheduler runs if ITERATION_BASED is defined
+#define MAX_ITERATIONS 5000                 // The number of times a scheduler runs if ITERATION_BASED is defined
 #define MAX_STUCK_TIME 500                  // Max time (in milliseconds) a task may stay in the same state 
 
 /* Scheduler related defines */
@@ -24,7 +22,6 @@
 /* Log related defines*/
 //#define DEBUG                             // Has each task print its name when it runs
 #define LOGGING                             // Log the parameters (core weight & core/task utility)
-//#define RUN_LOG                           // Print the runs of the first added task, used to debug
 #define MAX_LOG_INTERVAL    10              // Number of miliseconds between each log 
 
 #endif

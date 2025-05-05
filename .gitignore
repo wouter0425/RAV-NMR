@@ -7,3 +7,6 @@
 # Ignore `bin` dir
 bin/
 results/
+
+# Ignore .vscode settings file
+.vscode/

@@ -38,9 +38,9 @@ class scheduler {
         time_t m_activationTime;
         time_t m_log_timeout;
 
+        int specialCounter{0};
+
         string m_outputDirectory {"results"};
-        //int m_replicates[3];
-        //int m_voter;
         int m_runs { 0 };
 
     public:
@@ -58,6 +58,16 @@ class scheduler {
          * If setting the CPU affinity fails, the function prints an error message and exits the program.
          */
         void init_scheduler();
+
+        /**
+         * @brief Performs the scheduler loop.
+         *
+         * This function performs the following steps:
+         * - monitors tasks
+         * - dispatch fireable tasks
+         * - log (if defined)         *
+         */
+        void start_scheduler();
 
         /**
          * @brief Monitors and manages the state of all tasks in the scheduler.
@@ -140,7 +150,7 @@ class scheduler {
         void cleanup_tasks();
 
 
-        // task* get_task(int i) { return m_tasks[i]; }
+        task* get_task(int i) { return m_tasks[i]; }
 
         /**
         * @brief Finds a task by its name.
@@ -177,17 +187,12 @@ class scheduler {
          */
         bool active();
 
-
-        void printResults();
-        //void start_scheduler(scheduler *s);
+        void printResults();        
         void log_results();
-        void write_results_to_csv();
+        void write_results_to_tsv();
         string generateOutputString(const string& prefix);
         void setOutputDirectory(string name) {m_outputDirectory = name;} ;
-
         void create_parameter_file(string &path);
-
-        // TODO: Move to utils
         long current_time_in_ms();
 
 };

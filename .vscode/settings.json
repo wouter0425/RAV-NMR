@@ -67,6 +67,7 @@
         "span": "c",
         "stop_token": "c",
         "thread": "c",
-        "variant": "c"
+        "variant": "c",
+        "core.h": "c"
     }
 }
