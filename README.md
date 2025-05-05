@@ -1,8 +1,6 @@
-# CoreGuard-NMR
+# RAV-NMR
 
-CoreGuard-NMR is created as a way to create and validate redundancy techniques in schedulers for my thesis. It supports N-modular redundancy.
-The current main file implements 2 schedules, one using TMR and one running normally. The scheduling technique used is load balancing.
-The scheduler tries to distribute the tasks over the available cores.
+RAV-NMR is created as a way to create and validate NMR techniques in schedulers for my thesis. It supports both traditional NMR and my proposed RAV-NMR
 
 Additionally, this framework is able to log various parameters while the scheduler runs:
 - **results/cores:** The utility of the CPU cores
