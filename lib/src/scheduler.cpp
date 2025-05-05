@@ -387,7 +387,7 @@ void scheduler::log_results() {
     }
 }
 
-void scheduler::write_results_to_csv() 
+void scheduler::write_results_to_tsv() 
 {
 #ifndef LOGGING
     return;
