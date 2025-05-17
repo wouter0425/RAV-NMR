@@ -1,0 +1,10 @@
+Task: task_A 	 total runs: 4 	 successful runs: 4 	 failed runs: 0 	 error runs: 0 	 total task time: 202 	 average task time: 50.50 	Core 0: 2	Core 1: 1	Core 2: 1	Core 3: 1	
+Task: task_B 	 total runs: 4 	 successful runs: 4 	 failed runs: 0 	 error runs: 0 	 total task time: 208 	 average task time: 52.00 	Core 0: 1	Core 1: 1	Core 2: 1	Core 3: 1	
+Task: task_C 	 total runs: 4 	 successful runs: 4 	 failed runs: 0 	 error runs: 0 	 total task time: 204 	 average task time: 51.00 	Core 0: 1	Core 1: 1	Core 2: 1	Core 3: 1	
+Core: 0 	 runs: 3 	 weight: 100.000000 	 state 1 
+Core: 1 	 runs: 3 	 weight: 100.000000 	 state 0 
+Core: 2 	 runs: 3 	 weight: 100.000000 	 state 0 
+Core: 3 	 runs: 3 	 weight: 100.000000 	 state 0 
+Task: task_A 	 state: 2 	 input full: 1 	 latest result 443851 	 latest status 0 
+Task: task_B 	 state: 0 	 input full: 0 	 latest result 443852 	 latest status 0 
+Task: task_C 	 state: 0 	 input full: 0 	 latest result 443853 	 latest status 0 

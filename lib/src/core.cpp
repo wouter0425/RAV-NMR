@@ -7,9 +7,9 @@ core::core(int id, float weight, bool active, int runs)
     m_active = active;
     m_runs = runs;
 
-    for (int i = 0; i < MAX_SCORE_BUFFER; i++)
+    for (int i = 0; i < CORE_BUFFER_SIZE; i++)
     {
-        m_scoreBuffer.push(int(100 / MAX_SCORE_BUFFER));
+        m_scoreBuffer.push(int(100 / CORE_BUFFER_SIZE));
     }
 }
 

@@ -1,0 +1,18 @@
+*** Parameter file *** 
+task busy time: 50 
+max read time: 1000 
+iterations: 5 
+cores: 4 
+	 core: 0 
+	 core: 1 
+	 core: 2 
+	 core: 3 
+scheduler core: 4 
+core buffer: 4 
+max stuck time: 500 
+
+Task descriptions: 
+Name: 	 Offset 	 Period: 	 Priority: 
+task_A 	 0 	 150 	 0 
+task_B 	 0 	 0 	 1 
+task_C 	 0 	 0 	 2 

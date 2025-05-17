@@ -19,9 +19,11 @@
 #include <scheduler.h>
 #include <pipe.h>
 
-scheduler* scheduler::declare_scheduler()
+scheduler* scheduler::declare_scheduler(string name)
 {
     scheduler* s = new scheduler();
+    s->setOutputDirectory(name);
+    
     return s;
 }
 
@@ -145,7 +147,7 @@ void scheduler::handle_task_completion(task *t, int status, pid_t result)
         if (WEXITSTATUS(status) == 0) 
         {
             t->set_success(t->get_success() + 1);
-            core->update_weight(MAX_CORE_WEIGHT / MAX_SCORE_BUFFER);
+            core->update_weight(MAX_CORE_WEIGHT / CORE_BUFFER_SIZE);
 
             if (core->get_weight() > MAX_CORE_WEIGHT)
                 core->set_weight(MAX_CORE_WEIGHT);
@@ -241,7 +243,7 @@ void scheduler::add_task(voter *v)
     return;
 }
 
-void scheduler::cleanup_tasks()
+void scheduler::cleanup_scheduler()
 {    
     for (size_t i = 0; i < m_tasks.size(); i++)
     {
@@ -547,7 +549,7 @@ void scheduler::create_parameter_file(string &path)
     }
 
     fprintf(injection_file, "scheduler core: %d \n", SCHEDULER_CORE);
-    fprintf(injection_file, "core buffer: %d \n", MAX_SCORE_BUFFER);
+    fprintf(injection_file, "core buffer: %d \n", CORE_BUFFER_SIZE);
     fprintf(injection_file, "max stuck time: %d \n\n", MAX_STUCK_TIME);
     fprintf(injection_file, "Task descriptions: \n");
     fprintf(injection_file, "Name: \t Offset \t Period: \t Priority: \n");

@@ -1,25 +1,39 @@
+
+#include <array>
+#include <math.h>
+#include <time.h>
+#include <timer.h>
+
+#include <defines.h>
 #include <pipe.h>
 
-#include "math.h"
-#include <time.h>
-#include "timer.h"
-#include <array>
-
-#include "../../benchmark/include/FlightController.h"
+#include <flight_controller.h>
 
 // Declare the pipes here
+#ifndef NMR
+
+extern Pipe *AB;
+extern Pipe *BC;
+
+#else
+
 extern Pipe *AB_1;
 extern Pipe *AB_2;
 extern Pipe *AB_3;
-extern Pipe *BC_1;
-extern Pipe *BC_2;
-extern Pipe *BC_3;
-extern Pipe *CD_1;
+extern Pipe *BV_1;
+extern Pipe *BV_2;
+extern Pipe *BV_3;
+extern Pipe *VC;
+
+#endif
+
 
 /**************************************
  * No NMR
  ************************************ */ 
-void read_sensors_0(void)
+#ifndef NMR
+
+void read_sensors(void)
 {
 #ifdef DEBUG
     printf("task A\n");
@@ -49,24 +63,19 @@ void read_sensors_0(void)
     }    
 
     // Decide command based on thresholds
-    Command sensorCommand = NO_ACTION;
-    if (std::fabs(estimated_roll) > 10.0) {
-        sensorCommand = STABILIZE_ROLL;
-    } else if (std::fabs(estimated_pitch) > 10.0) {
-        sensorCommand = STABILIZE_PITCH;
-    }
+    Command sensorCommand = CALCULATE_VECTOR;
 
     // Send only what Task B needs: command, roll, pitch
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f",
              static_cast<int>(sensorCommand), estimated_roll, estimated_pitch);
 
-    AB_1->write_data(buffer);
+    AB->write_data(buffer);
 
     exit(0);
 }
 
-void process_data_0(void)
+void process_data(void)
 {
 #ifdef DEBUG
     printf("task B-1\n");
@@ -74,7 +83,7 @@ void process_data_0(void)
 
     // Read from pipe AB_1
     char buffer[64] = {0};
-    if (!AB_1->read_data(buffer, sizeof(buffer))) {        
+    if (!AB->read_data(buffer, sizeof(buffer))) {        
         exit(1);
     }
 
@@ -91,8 +100,7 @@ void process_data_0(void)
     if (parsed != 3) {
         //printf("DEBUG B: parse error, buffer=%s\n", buffer);
         exit(1);
-    }
-    Command sensorCommand = static_cast<Command>(cmdInt);
+    }    
 
     // We'll store a "running" stabilized angles. Start from the input.
     double stabilizedRoll  = roll_in;
@@ -143,14 +151,75 @@ void process_data_0(void)
         stabilizedYaw   = row2;
     }
 
+    Command sensorCommand = CORRECT_VECTOR;
+
     // Send only what Task C needs: command, stabilizedRoll, stabilizedPitch, stabilizedYaw
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f %.2f",
              sensorCommand, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-    CD_1->write_data(buffer);    
+    BC->write_data(buffer);    
 
     exit(0);
 }
 
+void control_actuators(void) 
+{
+#ifdef DEBUG
+    printf("Task C \n");
+#endif
+
+    char buffer[64] = {0};
+    if (!BC->read_data(buffer, sizeof(buffer))) {                
+        exit(1);
+    }
+
+    if (strcmp(buffer, "2 1.02 0.98 1.00" ))
+        exit(2);
+
+    int cmdInt = 0;
+    double roll_in=0.0, pitch_in=0.0, yaw_in=0.0;
+    int parsed = sscanf(buffer, "%d %lf %lf %lf", &cmdInt, &roll_in, &pitch_in, &yaw_in);
+    if (parsed != 4) {
+        exit(1);
+    }    
+
+    // Busy loop to simulate PID
+    Timer timer;
+    double motorRollOutput=0.0, motorPitchOutput=0.0, motorYawOutput=0.0;
+    double Kp=0.8, Ki=0.1, Kd=0.2;
+    static double prevErrorRoll=0.0, integralRoll=0.0;
+    static double prevErrorPitch=0.0, integralPitch=0.0;
+    static double prevErrorYaw=0.0, integralYaw=0.0;
+
+    while (!timer.hasElapsedMilliseconds(TASK_BUSY_TIME))
+    {
+        // Let roll_in, pitch_in, yaw_in represent the "errors"
+        double errorRoll  = roll_in;
+        double errorPitch = pitch_in;
+        double errorYaw   = yaw_in;
+
+        // Basic PID for roll
+        integralRoll += errorRoll;
+        double derivativeRoll = (errorRoll - prevErrorRoll);
+        motorRollOutput = Kp * errorRoll + Ki * integralRoll + Kd * derivativeRoll;
+        prevErrorRoll   = errorRoll;
+
+        // Pitch
+        integralPitch += errorPitch;
+        double derivativePitch = (errorPitch - prevErrorPitch);
+        motorPitchOutput = Kp * errorPitch + Ki * integralPitch + Kd * derivativePitch;
+        prevErrorPitch   = errorPitch;
+
+        // Yaw
+        integralYaw += errorYaw;
+        double derivativeYaw = (errorYaw - prevErrorYaw);
+        motorYawOutput = Kp * errorYaw + Ki * integralYaw + Kd * derivativeYaw;
+        prevErrorYaw   = errorYaw;
+    }
+
+    exit(0);
+}
+
+#else
 
 /**************************************
  * NMR
@@ -185,12 +254,7 @@ void read_sensors(void)
     }    
 
     // Decide command based on thresholds
-    Command sensorCommand = NO_ACTION;
-    if (std::fabs(estimated_roll) > 10.0) {
-        sensorCommand = STABILIZE_ROLL;
-    } else if (std::fabs(estimated_pitch) > 10.0) {
-        sensorCommand = STABILIZE_PITCH;
-    }
+    Command sensorCommand = CALCULATE_VECTOR;
 
     // Send only what Task B needs: command, roll, pitch
     char buffer[64];
@@ -229,8 +293,7 @@ void process_data_1(void)
     if (parsed != 3) {
         //printf("DEBUG B: parse error, buffer=%s\n", buffer);
         exit(1);
-    }
-    Command sensorCommand = static_cast<Command>(cmdInt);
+    }    
 
     // We'll store a "running" stabilized angles. Start from the input.
     double stabilizedRoll  = roll_in;
@@ -281,10 +344,12 @@ void process_data_1(void)
         stabilizedYaw   = row2;
     }
 
+    Command sensorCommand = CORRECT_VECTOR;
+
     // Send only what Task C needs: command, stabilizedRoll, stabilizedPitch, stabilizedYaw
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f %.2f",
              sensorCommand, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-    BC_1->write_data(buffer);    
+    BV_1->write_data(buffer);    
 
     exit(0);
 }
@@ -310,7 +375,6 @@ void process_data_2(void)
     if (parsed != 3) {        
         exit(1);
     }
-    Command sensorCommand = static_cast<Command>(cmdInt);
 
     // We'll store a "running" stabilized angles. Start from the input.
     double stabilizedRoll  = roll_in;
@@ -361,10 +425,12 @@ void process_data_2(void)
         stabilizedYaw   = row2;
     }
 
+    Command sensorCommand = CORRECT_VECTOR;
+
     // Send only what Task C needs: command, stabilizedRoll, stabilizedPitch, stabilizedYaw
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f %.2f",
              sensorCommand, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-    BC_2->write_data(buffer);    
+    BV_2->write_data(buffer);    
 
     exit(0);
 }
@@ -390,7 +456,6 @@ void process_data_3(void)
     if (parsed != 3) {        
         exit(1);
     }
-    Command sensorCommand = static_cast<Command>(cmdInt);
 
     // We'll store a "running" stabilized angles. Start from the input.
     double stabilizedRoll  = roll_in;
@@ -441,10 +506,12 @@ void process_data_3(void)
         stabilizedYaw   = row2;
     }
 
+    Command sensorCommand = CORRECT_VECTOR;
+
     // Send only what Task C needs: command, stabilizedRoll, stabilizedPitch, stabilizedYaw
     snprintf(buffer, sizeof(buffer), "%d %.2f %.2f %.2f",
              sensorCommand, stabilizedRoll, stabilizedPitch, stabilizedYaw);
-    BC_3->write_data(buffer);    
+    BV_3->write_data(buffer);    
 
     exit(0);
 }
@@ -458,9 +525,9 @@ void majority_voter(void) {
     bool reads[3];
 
     // 1) Read from each B->C pipe
-    reads[0] = BC_1->read_data(buffers[0], sizeof(buffers[0]));
-    reads[1] = BC_2->read_data(buffers[1], sizeof(buffers[1]));
-    reads[2] = BC_3->read_data(buffers[2], sizeof(buffers[2]));    
+    reads[0] = BV_1->read_data(buffers[0], sizeof(buffers[0]));
+    reads[1] = BV_2->read_data(buffers[1], sizeof(buffers[1]));
+    reads[2] = BV_3->read_data(buffers[2], sizeof(buffers[2]));    
 
     // 2) You could parse each buffer, compare the floats, do a majority vote
     //    For now, let's do a simplistic "string compare" approach (like you do).
@@ -483,8 +550,8 @@ void majority_voter(void) {
     Timer timer;
     while (!timer.hasElapsedMilliseconds(10)) { }
 
-    // 3) Write final result to next pipe (CD_1) for Task C    
-    CD_1->write_data(outputBuffer);
+    // 3) Write final result to next pipe (VC) for Task C    
+    VC->write_data(outputBuffer);
     exit(0);
 }
 
@@ -495,11 +562,11 @@ void control_actuators(void)
 #endif
 
     char buffer[64] = {0};
-    if (!CD_1->read_data(buffer, sizeof(buffer))) {                
+    if (!VC->read_data(buffer, sizeof(buffer))) {                
         exit(1);
     }
 
-    if (strcmp(buffer, "1 1.02 0.98 1.00" ))
+    if (strcmp(buffer, "2 1.02 0.98 1.00" ))
         exit(2);
 
     int cmdInt = 0;
@@ -507,8 +574,7 @@ void control_actuators(void)
     int parsed = sscanf(buffer, "%d %lf %lf %lf", &cmdInt, &roll_in, &pitch_in, &yaw_in);
     if (parsed != 4) {
         exit(1);
-    }
-    Command finalCmd = static_cast<Command>(cmdInt);
+    }    
 
     // Busy loop to simulate PID
     Timer timer;
@@ -546,3 +612,5 @@ void control_actuators(void)
 
     exit(0);
 }
+
+#endif

@@ -45,7 +45,7 @@ class scheduler {
 
     public:
 
-        static scheduler* declare_scheduler();
+        static scheduler* declare_scheduler(string name);
 
         /**
          * @brief Initializes the scheduler by setting up cores and CPU affinity.
@@ -147,7 +147,7 @@ class scheduler {
          * and waits for the process to ensure they are terminated.
          * It then prints a message indicating that the scheduler is shutting down.
          */
-        void cleanup_tasks();
+        void cleanup_scheduler();
 
 
         task* get_task(int i) { return m_tasks[i]; }

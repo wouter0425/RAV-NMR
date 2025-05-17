@@ -12,45 +12,69 @@
 #include <signal.h>
 
 #include <scheduler.h>
-#include <task.h>
-#include <voter.h>
-#include <pipe.h>
-#include <defines.h>
-#include <user_functions.h>
-
-void handle_signal(int sig);
+#include <flight_controller.h>
 
 /* Pipes have to be declared in the global scope*/
+#ifndef NMR
+
+Pipe *AB;
+Pipe *BC;
+
+#else
+
 Pipe *AB_1;
 Pipe *AB_2;
 Pipe *AB_3;
 
-Pipe *BC_1;
-Pipe *BC_2;
-Pipe *BC_3;
+Pipe *BV_1;
+Pipe *BV_2;
+Pipe *BV_3;
 
-Pipe *CD_1;
+Pipe *VC;
 
-scheduler* s;
+#endif
+
 
 int main()
 {
-    // Register the signal handler for SIGINT
-    signal(SIGINT, handle_signal);
+#ifndef NMR
 
     /* Initialize the scheduler */
-    s = scheduler::declare_scheduler();
-    s->setOutputDirectory("RAV-NMR");
+    scheduler* s = scheduler::declare_scheduler("baseline");
+    s->init_scheduler();
+
+    /* Declare the pipes */
+    AB = Pipe::declare_pipe("pipe_AB");
+    BC = Pipe::declare_pipe("pipe_BC");
+
+    /* Declare the tasks */
+    task* task_A = task::declare_task("task_A", 150, 0, 0, read_sensors);
+    task* task_B = task::declare_task("task_B", 0, 0, 1, process_data);
+    task* task_C = task::declare_task("task_C", 0, 0, 2, control_actuators);
+
+    /* Setup the task inputs */
+    task_B->add_input(AB, 4);
+    task_C->add_input(BC, 4);
+
+    /* Add tasks to the scheduler */
+    s->add_task(task_A);
+    s->add_task(task_B);
+    s->add_task(task_C);
+
+#else
+
+    /* Initialize the scheduler */
+    scheduler* s = scheduler::declare_scheduler("RAV-NMR");
     s->init_scheduler();
 
     /* Declare the pipes */
     AB_1 = Pipe::declare_pipe("pipe_AB_1");    
     AB_2 = Pipe::declare_pipe("pipe_AB_2");    
     AB_3 = Pipe::declare_pipe("pipe_AB_3");    
-    BC_1 = Pipe::declare_pipe("pipe_BC_1");    
-    BC_2 = Pipe::declare_pipe("pipe_BC_2");    
-    BC_3 = Pipe::declare_pipe("pipe_BC_3");    
-    CD_1 = Pipe::declare_pipe("pipe_CD");
+    BV_1 = Pipe::declare_pipe("pipe_BV_1");    
+    BV_2 = Pipe::declare_pipe("pipe_BV_2");    
+    BV_3 = Pipe::declare_pipe("pipe_BV_3");    
+    VC = Pipe::declare_pipe("pipe_VC");
 
     /* Declare the tasks */
     task* task_A_1 = task::declare_task("task_A_1", 150, 0, 0, read_sensors);
@@ -60,13 +84,13 @@ int main()
     task* task_C_1 = task::declare_task("task_C_1", 0, 0, 2, control_actuators);
 
     /* Setup the task inputs */
-    task_C_1->add_input(CD_1, 4);
     task_B_1->add_input(AB_1, 4);
-    task_B_3->add_input(AB_3, 4);
     task_B_2->add_input(AB_2, 4);
+    task_B_3->add_input(AB_3, 4);
+    task_C_1->add_input(VC, 4);
 
     /* Create the voter and add replicates */
-    voter* v = voter::declare_voter("voter", 0, 0, 1, majority_voter, voter_type::weighted);
+    voter* v = voter::declare_voter("voter", 0, 0, 3, majority_voter, voter_type::standard);
     v->add_replicate(task_B_1);
     v->add_replicate(task_B_2);
     v->add_replicate(task_B_3);
@@ -77,7 +101,9 @@ int main()
     s->add_task(task_B_2);
     s->add_task(task_B_3);
     s->add_task(v);   
-    s->add_task(task_C_1);  
+    s->add_task(task_C_1);
+
+#endif
 
     /* Start the scheduler loop */
     s->start_scheduler();
@@ -86,19 +112,7 @@ int main()
     s->write_results_to_tsv();    
 
     /* Free any allocated memory */
-    s->cleanup_tasks();
+    s->cleanup_scheduler();
 
     return 0;
-}
-
-void handle_signal(int sig) 
-{
-    s->printResults();
-    s->write_results_to_tsv();
-
-    if (sig == SIGINT) 
-    {
-        printf("Scheduler received SIGINT, shutting down...\n");
-        exit(EXIT_SUCCESS);
-    }
 }
